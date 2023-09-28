@@ -58,8 +58,8 @@ class UCIDataset(Dataset):
         }
     }
 
-    def __init__(self, name: Text, data_path: Union[Path, Text] = ""):
-        self._load_uci_dataset(name, data_path)
+    def __init__(self, name: Text, root: Union[Path, Text] = ""):
+        self._load_uci_dataset(name, root)
 
     def __len__(self):
         return len(self.Y)
@@ -69,21 +69,21 @@ class UCIDataset(Dataset):
             idx = idx.tolist()
         return self.X[idx], self.Y[idx]
 
-    def _load_uci_dataset(self, name: Text, data_path: Union[Path, Text] = ""):
+    def _load_uci_dataset(self, name: Text, root: Union[Path, Text] = ""):
         if name not in UCIDataset.uci_datasets:
             raise Exception(f"Not known dataset {name}!")
-        if isinstance(data_path, str):
-            data_path = Path(data_path)
-        if not path.exists(data_path / "UCI"):
-            os.mkdir(data_path / "UCI")
+        if isinstance(root, str):
+            root = Path(root)
+        if not path.exists(root / "UCI"):
+            os.mkdir(root / "UCI")
 
         url: Text = UCIDataset.uci_datasets[name]["url"]
         file_name: Text = url.split('/')[-1]
-        if not path.exists(data_path / "UCI" / file_name):
+        if not path.exists(root / "UCI" / file_name):
             urllib.request.urlretrieve(
-                UCIDataset.uci_datasets[name]["url"], data_path / "UCI" / file_name)
+                UCIDataset.uci_datasets[name]["url"], root / "UCI" / file_name)
 
-        file_path: Path = data_path / 'UCI' / file_name
+        file_path: Path = root / 'UCI' / file_name
         read_kwargs = UCIDataset.uci_datasets[name]["read_kwargs"] if "read_kwargs" in UCIDataset.uci_datasets[
             name] else {}
         original_df = UCIDataset._read_data(file_path, **read_kwargs)

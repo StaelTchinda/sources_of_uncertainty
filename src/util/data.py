@@ -1,6 +1,6 @@
 from typing import Text, Union, List, Optional, Mapping
 from torch.utils import data as torch_data
-
+import pytorch_lightning as pl
 
 from util import verification
 
@@ -39,6 +39,12 @@ def count_labels(dataset: torch_data.Dataset) -> Mapping[int, int]:
             label_counts[label] = 1
 
     return label_counts
+
+
+def verbose_datamodule(datamodule: pl.LightningDataModule) -> Text:
+    datamodule.setup(stage="fit")
+    datamodule.setup(stage="test")
+    return verbose_dataloaders(datamodule.train_dataloader(), datamodule.val_dataloader(), datamodule.test_dataloader())
 
 
 def verbose_dataloaders(train_dataloader: Optional[torch_data.DataLoader], val_dataloader: torch_data.DataLoader, test_dataloader: torch_data.DataLoader, verbose_class_distr: bool = False) -> Text:

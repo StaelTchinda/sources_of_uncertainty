@@ -69,9 +69,4 @@ class LeNet5(nn.Module):
         logits = self.classifier(x)
         return logits
 
-    def probs(self, x: torch.Tensor) -> torch.Tensor:
-        logits = self.forward(x)
-        probs = F.softmax(logits, dim=1)
-        return probs
-
 

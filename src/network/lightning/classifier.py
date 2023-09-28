@@ -1,6 +1,8 @@
 from typing import Any, Callable, Dict, List, Text, Type, Optional
+import warnings
 
 import pytorch_lightning as pl
+import torch
 from pytorch_lightning.utilities.types import TRAIN_DATALOADERS
 import torch.nn as nn
 import torch.optim as optim
@@ -30,10 +32,12 @@ class LightningClassifier(pl.LightningModule):
         self.lr_scheduler_params = lr_scheduler_params
         self.train_metrics = nn.ModuleDict(train_metrics if train_metrics is not None else {})
         self.val_metrics = nn.ModuleDict(val_metrics if val_metrics is not None else {})
-        self.save_hyperparameters(ignore=['model', 'loss_function'])
+        self.save_hyperparameters(ignore=['model'])
     
     def forward(self, x):
         logits = self.model(x)
+        if torch.allclose(logits.sum(dim=1), torch.zeros(logits.shape[0], device=logits.device)):
+            warnings.warn("Logits sum to zero as it is already a probability distribution. Do you really want to apply softmax?")
         probs  = nn.functional.softmax(logits, dim=1)
         return probs
     
