@@ -8,6 +8,7 @@ from network.lightning.laplace import LaplaceModule
 
 from metrics.shannon_entropy import ShannonEntropy
 from metrics.standard_dev import StandardDev, standard_dev
+from metrics.variance import VarianceEstimator
 
 def evaluate_model(model: nn.Module, dataloader: torch_data.DataLoader, metrics: Dict[Text, torchmetrics.Metric], device: torch.device):
     model.to(device)

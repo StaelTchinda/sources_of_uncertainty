@@ -26,8 +26,8 @@ def get_default_dataset_params(dataset_mode: DatasetMode):
     ])
     cifar10_test_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
-    )
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+    ])
     root=str(path_config.DATA_PATH)
     if dataset_mode == "train":
         return {
@@ -70,8 +70,8 @@ def get_default_train_dataloader_params(dataset_mode: DatasetMode):
 
 def get_default_datamodule_params():
     return {
-        "train_ratio": 40000,
-        "val_ratio": 10000,
+        "train_ratio": 400,#00,
+        "val_ratio": 100,#00,
         "train_dataset_params": get_default_dataset_params("train"),
         "val_dataset_params": get_default_dataset_params("val"),
         "test_dataset_params": get_default_dataset_params("test"),

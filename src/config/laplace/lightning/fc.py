@@ -19,7 +19,7 @@ def get_default_lightning_laplace_trainer_params() -> Dict[Text, Any]:
 def get_default_laplace_lightning_module_params() -> Dict[Text, Any]:
     return {
         "prediction_mode": "bayesian",
-        "pred_type": "glm",
+        "pred_type": "nn",
         "n_samples": 1000,
         "val_metrics": metrics_config.get_default_ensemble_val_metrics(num_classes=3)
     }
