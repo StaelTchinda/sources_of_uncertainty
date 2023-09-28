@@ -15,7 +15,7 @@ def get_default_dataset_params(dataset_mode: DatasetMode):
 
 
 def get_default_dataloader_params(dataset_mode: DatasetMode):
-    batch_size: int = 32
+    batch_size: int = 20
     num_workers: int = 4
     return {
         "batch_size": batch_size,
@@ -25,9 +25,9 @@ def get_default_dataloader_params(dataset_mode: DatasetMode):
 
 def get_default_datamodule_params():
     return {
-        "train_ratio": 0.7,
-        "val_ratio": 0.2,
-        "test_ratio": 0.1,
+        "train_ratio": 109,
+        "val_ratio": 20,
+        "test_ratio": 20,
         "train_dataset_params": get_default_dataset_params("train"),
         "val_dataset_params": get_default_dataset_params("val"),
         "test_dataset_params": get_default_dataset_params("test"),
