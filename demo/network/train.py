@@ -22,10 +22,9 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 
 add_src_to_path()
 
-from util import assertion, config, checkpoint
+from util import assertion, checkpoint
 from util import lightning as lightning_util
-from data.dataset import utils as data_utils 
-from util.config import laplace as laplace_config, network as network_config
+from config import laplace as laplace_config, network as network_config, data as data_config, mode as mode_config, log as log_config, path as path_config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
@@ -44,8 +43,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='vgg11', required=False)
+    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=mode_config.AVAILABLE_DATASETS, default='cifar10', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=mode_config.AVAILABLE_MODELS, default='vgg11', required=False)
 
     parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
@@ -60,25 +59,25 @@ def parse_args() -> argparse.Namespace:
 def main():
     args: argparse.Namespace = parse_args()
 
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
+    log_path: Path = path_config.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
-        basic_config_params = config.log.get_log_basic_config(filename=log_path / f'{log_filename}.log')
+        basic_config_params = log_config.get_log_basic_config(filename=log_path / f'{log_filename}.log')
         logging.basicConfig(**basic_config_params)
         utils.verbose_and_log(f"Logging enabled: {log_filename}", args.verbose, args.log)
     else:
         logging.disable(logging.CRITICAL)
 
-    data_mode: config.mode.DataMode = args.data
-    model_mode: config.mode.ModelMode = args.model
+    data_mode: mode_config.DataMode = args.data
+    model_mode: mode_config.ModelMode = args.model
 
     # Initialize the dataloaders
-    data_module = config.dataset.lightning.get_default_datamodule(data_mode)
+    data_module = data_config.lightning.get_default_datamodule(data_mode)
     # utils.verbose_and_log(f"Datasets initialized: \n{data_utils.verbose_dataloaders(data_module.train_dataloader(), data_module.val_dataloader(), data_module.test_dataloader())}", args.verbose, args.log)
 
     # Initialize the model
-    model = config.network.get_default_model(model_mode)
+    model = network_config.get_default_model(model_mode)
     utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
     pl_module: pl.LightningModule = network_config.lightning.get_default_lightning_module(model_mode, model)
 

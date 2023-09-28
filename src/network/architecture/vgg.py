@@ -31,13 +31,14 @@ class VGG16(VGG):
             self.submodule_to_dropouts = self.dropout_hook.submodule_to_dropouts
 
 class VGG11(VGG):
-    def __init__(self, num_classes: int =10, weights: Optional[VGG11_Weights] = VGG11_Weights.IMAGENET1K_V1, progress: bool = False, dropout_p: Optional[float] = None):
+    def __init__(self, num_classes: int =10, weights: Optional[VGG11_Weights] = VGG11_Weights.IMAGENET1K_V1, progress: bool = False, dropout_p: float = 0.5):
         default_make_layers_params: Dict = {
             'cfg': cfgs["A"],
             'batch_norm': False
         }
         super().__init__(
-            make_layers(**default_make_layers_params)
+            make_layers(**default_make_layers_params), 
+            dropout=dropout_p
         )
         if weights:
             self.load_state_dict(weights.get_state_dict(progress=progress))
@@ -51,13 +52,14 @@ class VGG11(VGG):
     
 
 class VGG13(VGG):
-    def __init__(self, num_classes: int =10, weights: Optional[VGG13_Weights] = VGG13_Weights.IMAGENET1K_V1, progress: bool = False, dropout_p: Optional[float] = None):
+    def __init__(self, num_classes: int =10, weights: Optional[VGG13_Weights] = VGG13_Weights.IMAGENET1K_V1, progress: bool = False, dropout_p: float = 0.5):
         default_make_layers_params: Dict = {
             'cfg': cfgs["B"],
             'batch_norm': False
         }
         super().__init__(
-            make_layers(**default_make_layers_params)
+            make_layers(**default_make_layers_params),
+            dropout=dropout_p
         )
         if weights:
             self.load_state_dict(weights.get_state_dict(progress=progress))

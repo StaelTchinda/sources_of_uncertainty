@@ -23,8 +23,7 @@ add_src_to_path()
 
 from util import config, checkpoint
 from util import lightning as lightning_util
-from data.dataset import utils as data_utils 
-from util.config.laplace import get_default_laplace_params
+from config.laplace import get_default_laplace_params
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils

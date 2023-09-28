@@ -4,7 +4,7 @@ from torch import nn
 import torchmetrics
 from torch.utils import data as torch_data
 
-from network.lightning.laplace_lightning_module import LaplaceModule
+from network.lightning.laplace import LaplaceModule
 
 from metrics.shannon_entropy import ShannonEntropy
 from metrics.standard_dev import StandardDev, standard_dev

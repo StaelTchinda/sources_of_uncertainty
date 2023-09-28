@@ -1,2 +1,2 @@
-import network.lightning.fc_lightning_module as fc
-import network.lightning.laplace_lightning_module as laplace
+import network.lightning.classifier as fc
+import network.lightning.laplace as laplace

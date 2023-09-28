@@ -29,8 +29,7 @@ add_src_to_path()
 
 from util import assertion, config, checkpoint, verification
 from util import lightning as lightning_util, plot as plot_util
-from data.dataset import utils as data_utils 
-from util.config import laplace as laplace_config, network as network_config, metrics as metrics_config
+from config import laplace as laplace_config, network as network_config, metrics as metrics_config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
