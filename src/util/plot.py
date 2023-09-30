@@ -11,13 +11,14 @@ import matplotlib.pyplot as plt
 from matplotlib import figure
 import numpy as np
 
-from util import verification
+from util import verification, log as log_util
 from util import plot as plot_util
 from network import lightning as lightning
 from util.tensor.eigenvalue import NetworkGranularity, ReduceMode, reduce_eigenvalues_per_channel, reduce_eigenvalues_per_layer_channel
 from util.tensor.kron import KronBlockDecomposed, from_kron_block_decomposed_to_tensor
+import util
 
-
+# TODO: delete function if not used
 def heatmap_eigenvalues(weight_eigenvalues: Union[torch.Tensor, KronBlockDecomposed], x_axis: NetworkGranularity= 'weight', reduce_mode: Optional[ReduceMode] = None, model_decomposition: Optional[Dict[Text, List[int]]]=None) -> Dict[Text, figure.Figure]:
     eigval_vmin, eigval_vmax = None, None # 0, 20000
     if isinstance(weight_eigenvalues, list):
@@ -52,8 +53,11 @@ def heatmap_eigenvalues(weight_eigenvalues: Union[torch.Tensor, KronBlockDecompo
                 row_labels=labels,
                 col_labels=labels, 
                 ax=ax,
-                vmin=eigval_vmin, vmax=eigval_vmax)   
-            return {'': fig}
+                vmin=eigval_vmin, vmax=eigval_vmax)  
+
+            histogram_fig = log_util.histogram.histogram_vector(channel_eigenvalues.detach().cpu().numpy())
+
+            return {'heatmap': fig, 'histogram': histogram_fig}
         elif x_axis == 'layer_channel':
             verification.check_not_none(reduce_mode)
             verification.check_not_none(model_decomposition)
@@ -71,7 +75,9 @@ def heatmap_eigenvalues(weight_eigenvalues: Union[torch.Tensor, KronBlockDecompo
                     col_labels=labels, 
                     ax=ax,
                     vmin=eigval_vmin, vmax=eigval_vmax)   
-                result[layer_name]=fig
+                result[f'heatmap/{layer_name}']=fig
+                histogram_fig = log_util.histogram.histogram_vector(channel_eigenvalues.detach().cpu().numpy())
+                result[f'histogram/{layer_name}'] = histogram_fig
             return result
         elif x_axis == 'layer':
             verification.check_not_none(reduce_mode)
@@ -91,12 +97,54 @@ def heatmap_eigenvalues(weight_eigenvalues: Union[torch.Tensor, KronBlockDecompo
                 col_labels=labels, 
                 ax=ax,
                 vmin=eigval_vmin, vmax=eigval_vmax)   
-            return {'': fig}
+            histogram_fig = log_util.histogram.histogram_vector(torch.cat(list(layer_channel_eigenvalues.values())).detach().cpu().numpy())
+            return {'heatmap': fig, 'histogram': histogram_fig}
         else:
             raise NotImplementedError(f"Unknown x_axis {x_axis}")
     else:
         raise ValueError(f"Unknown type of eigenvalues {type(weight_eigenvalues)}")
 
+
+def histogram_eigenvalues(weight_eigenvalues: Union[torch.Tensor, KronBlockDecomposed], x_axis: NetworkGranularity= 'weight', reduce_mode: Optional[ReduceMode] = None, model_decomposition: Optional[Dict[Text, List[int]]]=None) -> Dict[Text, figure.Figure]:
+    eigval_vmin, eigval_vmax = None, None # 0, 20000
+    if isinstance(weight_eigenvalues, list):
+        weight_eigenvalues = from_kron_block_decomposed_to_tensor(weight_eigenvalues)
+
+    if isinstance(weight_eigenvalues, torch.Tensor):
+        if x_axis == 'weight':
+            data = weight_eigenvalues.detach().cpu().numpy() 
+            fig = log_util.histogram.histogram_vector(data)
+            return {'': fig}
+        elif x_axis == 'channel':
+            verification.check_not_none(reduce_mode)
+            verification.check_not_none(model_decomposition)
+            channel_eigenvalues = reduce_eigenvalues_per_channel(weight_eigenvalues, model_decomposition, reduce_mode)
+            data = channel_eigenvalues.detach().cpu().numpy()
+            fig = log_util.histogram.histogram_vector(data)
+            return {'': fig}
+        elif x_axis == 'layer_channel':
+            verification.check_not_none(reduce_mode)
+            verification.check_not_none(model_decomposition)
+            layer_channel_eigenvalues = reduce_eigenvalues_per_layer_channel(weight_eigenvalues, model_decomposition, reduce_mode)
+            result = {}
+            for (layer_name, channel_eigenvalues) in layer_channel_eigenvalues.items():
+                fig, ax = plt.subplots(figsize=(10,10))
+                data = channel_eigenvalues.detach().cpu().numpy()
+                histogram_fig = log_util.histogram.histogram_vector(data)
+                result[f'{layer_name}'] = histogram_fig
+            return result
+        elif x_axis == 'layer':
+            verification.check_not_none(reduce_mode)
+            verification.check_not_none(model_decomposition)
+            layer_channel_eigenvalues = reduce_eigenvalues_per_layer_channel(weight_eigenvalues, model_decomposition, reduce_mode)
+            result = {}
+            data = torch.cat(list(layer_channel_eigenvalues.values())).detach().cpu().numpy()
+            histogram_fig = log_util.histogram.histogram_vector(data)
+            return {'': histogram_fig}
+        else:
+            raise NotImplementedError(f"Unknown x_axis {x_axis}")
+    else:
+        raise ValueError(f"Unknown type of eigenvalues {type(weight_eigenvalues)}")
 
 # From https://matplotlib.org/stable/gallery/images_contours_and_fields/image_annotated_heatmap.html#sphx-glr-gallery-images-contours-and-fields-image-annotated-heatmap-py
 def heatmap(data, row_labels, col_labels, ax=None,

@@ -12,7 +12,7 @@ from typing import Tuple
 from network import lightning as lightning
 from util.laplace import compute_laplace_eigenvalues
 from util.network import compute_model_decomposition
-from util.plot import heatmap_eigenvalues
+from util.plot import histogram_eigenvalues
 
 from util.tensor.eigenvalue import ReduceMode, NetworkGranularity
 
@@ -28,7 +28,7 @@ def log_laplace_eigenvalues(laplace_curv: laplace.ParametricLaplace, logger: Ten
         raise ValueError(f"Unknown type of LaPlace approximation {type(laplace_curv)}")
 
     for (x_axis, reduce_mode) in params:
-        for (layer_name, fig) in heatmap_eigenvalues(weight_eigenvalues, x_axis=x_axis, reduce_mode=reduce_mode, model_decomposition=model_decompostion).items():
+        for (layer_name, fig) in histogram_eigenvalues(weight_eigenvalues, x_axis=x_axis, reduce_mode=reduce_mode, model_decomposition=model_decompostion).items():
             fig_prefix = f"{prefix}/{x_axis}/{reduce_mode}"
             fig_name = f"{fig_prefix}/{layer_name}" if layer_name != '' else fig_prefix
             logger.experiment.add_figure(fig_name, fig)
