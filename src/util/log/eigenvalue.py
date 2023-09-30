@@ -21,9 +21,9 @@ def log_laplace_eigenvalues(laplace_curv: laplace.ParametricLaplace, logger: Ten
     model_decompostion = compute_model_decomposition(laplace_curv.model)
         
     if isinstance(laplace_curv, laplace.FullLaplace):
-        prefix: Text = "laplace/full/eigenvalues"
+        prefix: Text = "laplace_eig/full"
     elif isinstance(laplace_curv, laplace.KronLaplace):
-        prefix: Text = "laplace/kron/eigenvalues"
+        prefix: Text = "laplace_eig/kron"
     else:
         raise ValueError(f"Unknown type of LaPlace approximation {type(laplace_curv)}")
 

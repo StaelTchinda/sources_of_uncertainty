@@ -23,7 +23,7 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 add_src_to_path()
 
 from util import assertion, checkpoint
-from util import lightning as lightning_util
+from util import lightning as lightning_util, data as data_utils
 from config import laplace as laplace_config, network as network_config, data as data_config, mode as mode_config, log as log_config, path as path_config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
@@ -74,16 +74,25 @@ def main():
 
     # Initialize the dataloaders
     data_module = data_config.lightning.get_default_datamodule(data_mode)
-    # utils.verbose_and_log(f"Datasets initialized: \n{data_utils.verbose_dataloaders(data_module.train_dataloader(), data_module.val_dataloader(), data_module.test_dataloader())}", args.verbose, args.log)
+    utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Initialize the model
     model = network_config.get_default_model(model_mode)
     utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
     pl_module: pl.LightningModule = network_config.lightning.get_default_lightning_module(model_mode, model)
 
+    # Save data hyperparameters
+    pl_module.save_hyperparameters(data_module.hparams)
+
+    pretrained_path: Optional[Path] = checkpoint.find_pretrained(log_path)
+    if args.checkpoint and pretrained_path is not None:
+        checkpoint.load_model(model, file_name=pretrained_path.name, 
+                              path_args={'save_path': pretrained_path.parent})
+
+
     # Eventually load the model from a checkpoint
     best_checkpoint_path: Optional[Path] = None
-    if args.checkpoint:
+    if args.checkpoint and pretrained_path is None:
         best_checkpoint_path = checkpoint.find_best_checkpoint(log_path)
         if best_checkpoint_path is not None:
             pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
