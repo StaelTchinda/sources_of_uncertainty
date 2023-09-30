@@ -45,7 +45,10 @@ fi
 
 # Set logdir based on data and model
 GLOBAL_LOG_PATH="../checkpoints"
-logdir="$GLOBAL_LOG_PATH/$data/$model/lightning_logs"
+logdir="$GLOBAL_LOG_PATH/$data/$model"
 
 # Launch tensorboard
-tensorboard --logdir="$logdir" --port="$port"
+echo "Starting Tensorboard at port $port and directory $log_dir"
+session_name="tensorboard_$port"
+tmux new -As $session_name -d "tensorboard --logdir='$logdir' --port=$port;read;"
+tmux attach -t $session_name
