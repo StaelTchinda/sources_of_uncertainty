@@ -1,9 +1,10 @@
-from typing import Text, Union, List, Optional, Mapping
+from typing import Any, Dict, Text, Union, List, Optional, Mapping
+import torch
 from torch.utils import data as torch_data
 import pytorch_lightning as pl
+from tqdm.autonotebook import tqdm
 
 from util import verification
-
 
 
 def split_data(data: torch_data.Dataset, split_ratios: Union[List[float], List[int]]) -> List[torch_data.Dataset]:
@@ -72,3 +73,16 @@ def verbose_dataloaders(train_dataloader: Optional[torch_data.DataLoader], val_d
         break
 
     return result_str
+
+
+class TqdmDataLoader(torch_data.DataLoader):
+    def __init__(self, dataloader: torch_data.DataLoader, tqdm_params: Optional[Dict[Text, Any]] = None):
+        self._inner_dataloader = dataloader
+        self._tqdm_params = tqdm_params if tqdm_params is not None else {}
+
+    def __iter__(self):
+        return iter(tqdm(self._inner_dataloader.__iter__(), **self._tqdm_params))
+
+    # For any method, call the method on the inner dataloader
+    def __getattr__(self, attr):
+        return getattr(self._inner_dataloader, attr)
