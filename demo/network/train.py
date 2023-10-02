@@ -59,7 +59,7 @@ def parse_args() -> argparse.Namespace:
 def main():
     args: argparse.Namespace = parse_args()
 
-    log_path: Path = path_config.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
+    log_path: Path = path_config.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -84,15 +84,18 @@ def main():
     # Save data hyperparameters
     pl_module.save_hyperparameters(data_module.hparams)
 
-    pretrained_path: Optional[Path] = checkpoint.find_pretrained(log_path)
-    if args.checkpoint and pretrained_path is not None:
-        checkpoint.load_model(model, file_name=pretrained_path.name, 
-                              path_args={'save_path': pretrained_path.parent})
-
+    pretrained_path: Optional[Path] = None
+    if args.checkpoint:
+        pretrained_path = checkpoint.find_pretrained(log_path)
+        if pretrained_path is not None:
+            utils.verbose_and_log(f"Loading pretrained model from {pretrained_path}", args.verbose, args.log)
+            model = checkpoint.load_model(model, file_name=pretrained_path.stem, 
+                                path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
 
     # Eventually load the model from a checkpoint
     best_checkpoint_path: Optional[Path] = None
     if args.checkpoint and pretrained_path is None:
+        utils.verbose_and_log(f"Loading best checkpoint from {log_path}", args.verbose, args.log)
         best_checkpoint_path = checkpoint.find_best_checkpoint(log_path)
         if best_checkpoint_path is not None:
             pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
@@ -100,13 +103,14 @@ def main():
 
     # Eventually train the model
     trainer = network_config.lightning.get_default_lightning_trainer(model_mode, {"default_root_dir": log_path})
-    if best_checkpoint_path is None:
+    if best_checkpoint_path is None and pretrained_path is None:
+        utils.verbose_and_log(f"Training model", args.verbose, args.log)
         trainer.fit(pl_module, data_module)
 
     # Evaluate the model
     if args.eval:
         trainer.validate(pl_module, data_module)
-        pl_module.eval()
+        # pl_module.eval()
         # utils.evaluate_model(pl_module, data_module.val_dataloader(), "MAP_on_val")
     
 if __name__ == '__main__':
