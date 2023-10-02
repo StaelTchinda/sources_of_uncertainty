@@ -36,7 +36,9 @@ def default_submodules_to_dropouts(model: nn.Module, p: float, mode: Literal['re
             elif isinstance(prev_module, nn.Conv2d) or isinstance(prev_module, nn.BatchNorm2d):
                 default_modules[module] = nn.Dropout2d(p)
             else:
-                raise ValueError(f"Unexpected module type before a ReLU: {type(prev_module)}")            
+                raise ValueError(f"Unexpected module type before a ReLU: {type(prev_module)}")
+
+        prev_module = module       
 
     return default_modules
 
@@ -104,6 +106,23 @@ class DropoutHook:
         for (submodule, element_check) in element_checks.items():
             if not element_check:
                 raise ValueError(f"Expected module {submodule} to belong to the model.")
+
+def verbose_dropout_hook_dict(dropout_hook: DropoutHook) -> Text:
+    unseen_modules: List[nn.Module] = list(dropout_hook.submodule_to_dropouts.keys())
+    result: Text = ""
+    result += (f"Registered submodules in {dropout_hook.model._get_name()}: \n")
+    for (module_name, module) in dropout_hook.model.named_modules():
+        if module in dropout_hook.submodule_to_dropouts:
+            result += (f"\t{module_name}: {module} -> {dropout_hook.submodule_to_dropouts[module]}\n")
+            unseen_modules.remove(module)
+    
+    if len(unseen_modules) > 0:
+        result += (f"Modules non-registered in model: \n")
+        for module in unseen_modules:
+            result += (f"{module} -> {dropout_hook.submodule_to_dropouts[module]}\n")
+
+    return result
+
 
 # Based on google benchmark, they apply the dropout mask (in ResNet50) after the layers:
 # - resnet.BasisBlock.relu1

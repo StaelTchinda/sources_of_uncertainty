@@ -30,6 +30,11 @@ class VGG16(VGG):
             self.dropout_hook = DropoutHook(self, dropout_p)
             self.submodule_to_dropouts = self.dropout_hook.submodule_to_dropouts
 
+    def train(self, mode: bool = True):
+        if hasattr(self, "dropout_hook"):
+            self.dropout_hook.enable_or_disable(mode)
+        super().train(mode)
+    
 class VGG11(VGG):
     def __init__(self, num_classes: int =10, weights: Optional[VGG11_Weights] = VGG11_Weights.IMAGENET1K_V1, progress: bool = False, dropout_p: float = 0.5):
         default_make_layers_params: Dict = {
@@ -49,6 +54,11 @@ class VGG11(VGG):
         if dropout_p is not None:
             self.dropout_hook = DropoutHook(self, dropout_p)
             self.submodule_to_dropouts = self.dropout_hook.submodule_to_dropouts
+
+    def train(self, mode: bool = True):
+        if hasattr(self, "dropout_hook"):
+            self.dropout_hook.enable_or_disable(mode)
+        super().train(mode)
     
 
 class VGG13(VGG):
@@ -70,3 +80,9 @@ class VGG13(VGG):
         if dropout_p is not None:
             self.dropout_hook = DropoutHook(self, dropout_p)
             self.submodule_to_dropouts = self.dropout_hook.submodule_to_dropouts
+
+    def train(self, mode: bool = True):
+        if hasattr(self, "dropout_hook"):
+            self.dropout_hook.enable_or_disable(mode)
+        super().train(mode)
+    
