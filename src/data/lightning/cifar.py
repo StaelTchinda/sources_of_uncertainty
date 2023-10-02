@@ -35,10 +35,12 @@ class Cifar10DataModule(CustomizableDataModule):
 
     def setup(self, stage=None):
         # Assign train/val datasets for use in dataloaders
-        if stage == "fit" or stage is None or stage == "validate":
+        if stage == "fit" or stage is None:
             mnist_full = datasets.CIFAR10(train=True, **self.train_dataset_params)
-            self.train_dataset, self.val_dataset = torch_data.random_split(mnist_full, [self.train_ratio, self.val_ratio])
-
+            self.train_dataset, _ = torch_data.random_split(mnist_full, [self.train_ratio, self.val_ratio])
+        if stage == "fit" or stage == "validate" or stage is None:
+            mnist_full = datasets.CIFAR10(train=True, **self.val_dataset_params)
+            _, self.val_dataset = torch_data.random_split(mnist_full, [self.train_ratio, self.val_ratio])
         # Assign test dataset for use in dataloader(s)
         if stage == "test" or stage is None:
             self.test_dataset = datasets.CIFAR10(
