@@ -56,6 +56,7 @@ def parse_args() -> argparse.Namespace:
 def main():
     args: argparse.Namespace = parse_args()
 
+    model_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
     log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
@@ -78,23 +79,32 @@ def main():
     utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
 
     pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
-    best_checkpoint_path = checkpoint.find_best_checkpoint(log_path)
+    best_checkpoint_path = checkpoint.find_best_checkpoint(model_log_path)
     if best_checkpoint_path is not None:
         pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
         pl_module.eval()
     else:
-        raise ValueError("No checkpoint found")
+        pretrained_path = checkpoint.find_pretrained(model_log_path)
+        if pretrained_path is not None:
+            utils.verbose_and_log(f"Loading pretrained model from {pretrained_path}", args.verbose, args.log)
+            checkpoint.load_model(model, file_name=pretrained_path.stem, 
+                                path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
+        else:   
+            raise ValueError("No checkpoint or pretrained model found")
 
     # Initialize the LaPlace approximation
     laplace_filename = config.laplace.get_default_laplace_name(model_mode)
     laplace_curv: laplace.ParametricLaplace = None
     if args.checkpoint is True:
+        utils.verbose_and_log(f"Loading LaPlace approximation from {laplace_filename}", args.verbose, args.log)
         laplace_curv = checkpoint.load_object(laplace_filename, path_args={"save_path": log_path / 'laplace'}, library='dill')
     if laplace_curv is None:
+        utils.verbose_and_log(f"Computing LaPlace approximation", args.verbose, args.log)
         laplace_params = config.laplace.get_default_laplace_params(model_mode)
         prior_optimization_params = config.laplace.get_default_laplace_prior_optimization_params(model_mode)
         data_module.setup(stage="fit")
-        laplace_curv = bayesian_laplace.compute_laplace_for_model(model, data_module.train_dataloader(), data_module.val_dataloader(), laplace_params, prior_optimization_params)
+        laplace_curv = bayesian_laplace.compute_laplace_for_model(model, data_module.train_dataloader(), data_module.val_dataloader(), laplace_params, prior_optimization_params, verbose=args.verbose)
+        utils.verbose_and_log(f"Saving LaPlace approximation to {laplace_filename}", args.verbose, args.log)
         checkpoint.save_object(laplace_curv, laplace_filename, save_path=log_path / 'laplace', library='dill')
 
     # Evaluate the LaPlace approximation
