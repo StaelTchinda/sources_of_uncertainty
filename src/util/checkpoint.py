@@ -21,6 +21,14 @@ def _update_path_in_kwargs(new_path, kwargs: Dict[Text, Any]):
     if 'save_path' not in kwargs:
         kwargs['save_path'] = new_path
 
+def find_pretrained(log_path: Path) -> Optional[Path]:
+    if not log_path.exists():
+        return None
+    pretrained = list(log_path.glob("pretrained/model*.pt"))
+    # print(f"Found at Log path: {log_path} {len(checkpoints)} checkpoints: {checkpoints}")
+    if len(pretrained) == 0:
+        return None
+    return pretrained[-1]
 
 def find_best_checkpoint(log_path: Path) -> Optional[Path]:
     if not log_path.exists():
@@ -130,7 +138,7 @@ def get_file_path(file_name: Text,
                   fail_if_not_found: bool = False,
                   save_path: Path = CHECKPOINTS_PATH) -> Optional[Path]:
     if timestamp == "last":
-        search_path: Path = save_path / f"{file_name} *.{file_ext}"
+        search_path: Path = save_path / f"{file_name}*.{file_ext}"
         relevant_files = glob(str(search_path))
         if len(relevant_files) == 0:
             if fail_if_not_found:
