@@ -36,8 +36,8 @@ class LightningClassifier(pl.LightningModule):
     
     def forward(self, x):
         logits = self.model(x)
-        if torch.allclose(logits.sum(dim=1), torch.zeros(logits.shape[0], device=logits.device)):
-            warnings.warn("Logits sum to zero as it is already a probability distribution. Do you really want to apply softmax?")
+        if torch.allclose(logits.sum(dim=1), torch.ones(logits.shape[0], device=logits.device)):
+            warnings.warn("Logits sum to 1 as it is already a probability distribution. Do you really want to apply softmax?")
         probs  = nn.functional.softmax(logits, dim=1)
         return probs
     
