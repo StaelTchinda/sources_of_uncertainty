@@ -2,8 +2,8 @@ from typing import Dict, Text, Any
 from torch import nn
 
 from network.architecture.lenet import LeNet5
-from network.architecture.vgg import VGG11
-from torchvision.models import VGG11_Weights, VGG13_Weights, VGG16_Weights, VGG16_BN_Weights, VGG, vgg16, vgg11
+from network.architecture.vgg import VGG16
+from torchvision.models import VGG16_Weights, VGG16_BN_Weights, VGG, vgg16
 
 
 def get_default_model_params() -> Dict[Text, Any]:
@@ -15,4 +15,4 @@ def get_default_model_params() -> Dict[Text, Any]:
 
 def get_default_model() -> nn.Module:
     params = get_default_model_params()
-    return VGG11(**params)
+    return VGG16(**params)
