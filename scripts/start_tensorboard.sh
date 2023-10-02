@@ -49,6 +49,6 @@ logdir="$GLOBAL_LOG_PATH/$data/$model"
 
 # Launch tensorboard
 echo "Starting Tensorboard at port $port and directory $log_dir"
-session_name="tensorboard_$port"
+session_name="tensorboard_${data}_${model}_${port}"
 tmux new -As $session_name -d "tensorboard --logdir='$logdir' --port=$port;read;"
 tmux attach -t $session_name
