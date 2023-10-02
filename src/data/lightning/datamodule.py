@@ -23,6 +23,9 @@ class CustomizableDataModule(pl.LightningDataModule):
         self.train_dataset: Optional[torch_data.Dataset] = None
         self.val_dataset: Optional[torch_data.Dataset] = None
         self.test_dataset: Optional[torch_data.Dataset] = None
+
+        # Pytorch Lightning gave its benediction: https://github.com/Lightning-AI/lightning/issues/3769
+        self.save_hyperparameters()
         super().__init__()
 
     def check_setup(self, stage=None):
