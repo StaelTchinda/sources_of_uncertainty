@@ -43,12 +43,15 @@ then
     exit 1
 fi
 
+# Get the path of the current file
+SCRIPT_PATH="$( cd "$(dirname "$0")" ; pwd -P )"
+# Get the path of the project root
+PROJECT_PATH="$(dirname "$SCRIPT_PATH")"
 # Set logdir based on data and model
-GLOBAL_LOG_PATH="../checkpoints"
-logdir="$GLOBAL_LOG_PATH/$data/$model"
+logdir="$PROJECT_PATH/checkpoints/$data/$model"
 
 # Launch tensorboard
-echo "Starting Tensorboard at port $port and directory $log_dir"
+echo "Starting Tensorboard at port $port and directory $logdir"
 session_name="tensorboard_${data}_${model}_${port}"
 tmux new -As $session_name -d "tensorboard --logdir='$logdir' --port=$port;read;"
 tmux attach -t $session_name
