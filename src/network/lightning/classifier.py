@@ -43,7 +43,7 @@ class LightningClassifier(pl.LightningModule):
     
     def training_step(self, batch, batch_idx):
         # Define the training step logic here
-        inputs, labels = batch
+        inputs, labels = batch[0], batch[1]
         preds = self(inputs)
         loss = self.loss_function(preds, labels)
         self.log('train/loss', loss, sync_dist=True, on_epoch=True, on_step=True)
@@ -64,7 +64,7 @@ class LightningClassifier(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         # Define the validation step logic here
-        inputs, labels = batch
+        inputs, labels = batch[0], batch[1]
         probs = self(inputs)
         loss = self.loss_function(probs, labels)
         # print(f"LightningModule validation_step probs: {probs}, \n preds: {probs.argmax(dim=1)}")
