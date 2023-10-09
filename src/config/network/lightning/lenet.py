@@ -31,7 +31,7 @@ def get_default_lightning_module(model: nn.Module) -> pl.LightningModule:
 def get_default_lightning_trainer_params() -> Dict[Text, Any]:
     return {
         "max_epochs": 10,
-        # "devices": 1,
+        "devices": 1,
         "enable_progress_bar": True,
         "check_val_every_n_epoch": 1,
         "log_every_n_steps": 1,
