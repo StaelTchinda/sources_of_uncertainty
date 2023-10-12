@@ -2,17 +2,15 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Text, Union
+from typing import List, Optional, Text, Union
 import logging
 import pytorch_lightning as pl
-from lightning.pytorch.loggers import TensorBoardLogger
 import torch
-from torch import nn
 from torch.utils import data as torch_data
 import torch.distributions as dists
 from netcal import metrics as netcal
 import laplace
-import laplace.utils.matrix
+
 
 def add_src_to_path(demo_dir_path: Optional[Path] = None):
     import sys, pathlib
@@ -25,14 +23,14 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 
 add_src_to_path()
 
-from util import assertion, checkpoint, verification
-from util import lightning as lightning_util, plot as plot_util, data as data_utils
-# from config import laplace as laplace_config, network as network_config, metrics as metrics_config, data as data_config
+from util import assertion, checkpoint
+from util import lightning as lightning_util, data as data_utils
 import config
 from network.bayesian import laplace as bayesian_laplace
-from network import lightning as lightning, pruning
+from network import lightning as lightning
 from util import utils
-import metrics
+
+from network.pruning import pruner as pruning_wrapper, util as pruning_util
 
 
 
@@ -48,16 +46,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
+    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='iris', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='fc', required=False)
 
-    parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
-    parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
-    parser.set_defaults(checkpoint=True)
-
-    parser.add_argument('--pruning', help='specify which pruning to use', choices=pruning.wrapper.AVAILABLE_PRUNING_STRATEGIES, default='random', required=False)
-
-    parser.add_argument('--pruning_sparsities', help='specify which sparsity we want the model to have', nargs='*', default=[0.1, 0.3, 0.5, 0.7, 0.9], required=False)
+    parser.add_argument('--strategy', help='specify which pruning strategy should be used', nargs='+', choices=pruning_wrapper.AVAILABLE_PRUNING_STRATEGIES, default=pruning_wrapper.AVAILABLE_PRUNING_STRATEGIES, required=False)
+    parser.add_argument('--sparsity', help='specify which sparsity the module should have to have', nargs='*', default=None, required=False)
+    parser.add_argument('--layer', help='specify which layers should be pruned we want the model to have', nargs='*', default=None, required=False)
 
     return parser.parse_args()
 
@@ -65,13 +59,14 @@ def parse_args() -> argparse.Namespace:
 def main():
     args: argparse.Namespace = parse_args()
 
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
-    log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
+    laplace_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace"
+    prune_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace" / "analyse" / "layer" / "prune"
+    log_foldername: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
-        basic_config_params = config.log.get_log_basic_config(filename=log_path / f'{log_filename}.log')
+        basic_config_params = config.log.get_log_basic_config(filename=laplace_log_path / 'prune' / f'{log_foldername}.log')
         logging.basicConfig(**basic_config_params)
-        utils.verbose_and_log(f"Logging enabled: {log_filename}", args.verbose, args.log)
+        utils.verbose_and_log(f"Logging enabled: {log_foldername}", args.verbose, args.log)
     else:
         logging.disable(logging.CRITICAL)
 
@@ -82,44 +77,69 @@ def main():
     data_module = config.data.lightning.get_default_datamodule(data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
-    # Initialize the model
-    model = config.network.get_default_model(model_mode)
-    utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
-    pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
-
-    # Load the best checkpoint
-    best_checkpoint_path = checkpoint.find_best_checkpoint(log_path)
-    if best_checkpoint_path is not None:
-        pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
-        pl_module.eval()
-    else:
-        raise ValueError("No checkpoint found")
-
-    # Load the LaPlace approximation
+    # Initialize the laplace approximation
     laplace_filename = config.laplace.get_default_laplace_name(model_mode)
-    laplace_curv: laplace.ParametricLaplace = None
-    if args.checkpoint is True:
-        laplace_curv = checkpoint.load_object(laplace_filename, path_args={"save_path": log_path / 'laplace'}, library='dill')
+    utils.verbose_and_log(f"Loading LaPlace approximation with name {laplace_filename} from {laplace_log_path}", args.verbose, args.log)
+    laplace_curv: laplace.ParametricLaplace = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill')
     if laplace_curv is None:
-        raise ValueError("No LaPlace approximation found")
+        raise ValueError("No laplace approximation found")
 
-    # Initialize the LaPlace module
-    laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
-    laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path})
+    laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_pruning_module(model_mode, laplace_curv) 
+    
+    pruning_layer_names: List[Text] = []
+    if args.layer is not None:
+        pruning_layer_names = args.layer
+    else:
+        pruning_layer_names = list(pruning_util.get_prunable_named_modules(laplace_pl_module.laplace.model).keys())
 
+    pruning_sparsities: List[float] = []
+    if args.sparsity is not None:
+        pruning_sparsities = args.sparsity
+    else:
+        pruning_sparsities = config.prune.get_default_sparsities(data_mode, model_mode)
+    pruning_amounts = pruning_util.get_required_amounts_for_sparsities(pruning_sparsities)
+    utils.verbose_and_log(f"To prune the model to the sparsities {pruning_sparsities}, it's necessary to prune it at the amounts {pruning_amounts}", args.verbose, args.log)
 
-    # Observe the eigenvalues of the Hessian
-    pruning_module = pruning.wrapper.PruningModule(pl_module.model, 
-                                                   config.metrics.get_default_deterministic_val_metrics(num_classes=3))
-    pruning_amounts = utils.get_required_amounts_for_sparsities(args.pruning_sparsities)
-    trainer = pl.Trainer(devices=1, deterministic=True, default_root_dir=log_path)
-    for module_name in pruning_module.prunable_named_modules().keys():
-        for pruning_amount in pruning_amounts:
-            pruning_module.configure_pruning(module_name, args.pruning, pruning_amount)
-            pruning_module.prune()
-            trainer.validate(pruning_module, data_module)
+    for strategy in args.strategy:
+        laplace_pl_module.pruner.pruning_strategy = strategy
+
+        for layer in pruning_layer_names:
+            laplace_pl_module.pruner.module_name_to_prune = layer
+
+            prune_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "prune" / log_foldername / f"{strategy}" / f"{layer}"
+            laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": prune_log_path})
+
+            for (sparsity, amount) in zip(pruning_sparsities, pruning_amounts):
+                utils.verbose_and_log(f"Pruning {layer} with strategy {strategy} and amount {amount}", args.verbose, args.log)
+                laplace_pl_module.pruner.pruning_amount = amount
+                laplace_pl_module.pruner.pruning_sparsity = sparsity
+                laplace_pl_module.pruner.prune()
+
+                # assertion.assert_is(laplace_pl_module.pruner.original_model, laplace_pl_module.laplace.backend.model)
+
+                laplace_trainer.validate(laplace_pl_module, data_module)
+
+                # Log details of sparsity for verification. It's important to log after the validation for the logger object to be initialized.
+                model_sparsity = pruning_util.measure_modular_sparsity(laplace_pl_module.laplace.model)
+                utils.verbose_and_log(pruning_util.verbose_modular_sparsity(laplace_pl_module.laplace.model, model_sparsity), args.verbose, args.log)
+                laplace_pl_module.logger.experiment.add_scalar(f'sparsity/amount', int(amount*100), int(sparsity*100))
+                for (module_name, sparsity_counts) in model_sparsity.items():
+                    laplace_pl_module.logger.experiment.add_scalar(f'sparsity/sparsity/{module_name}', sparsity_counts[0]/sparsity_counts[1], int(sparsity*100))
+                    laplace_pl_module.logger.experiment.add_scalar(f'sparsity/inactive_weight_count/{module_name}', sparsity_counts[0], int(sparsity*100))
+
+            pruning_util.undo_pruning(laplace_pl_module.pruner.module_to_prune)  
+    
+import atexit
+# Register the cleanup function to be called on exit
+atexit.register(utils.cleanup)
 
 if __name__ == '__main__':
-    main()
-        
+    try:
+        main()
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()        
 
