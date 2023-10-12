@@ -1,5 +1,6 @@
 from typing import Any, Dict, Literal, Text, Union, Optional
 import logging
+import os
 
 import scipy
 import scipy.stats
@@ -68,3 +69,26 @@ def verbose_and_log(message: Text, verbose: bool = False, log: bool = False, log
         print(message)
     if log:
         logging.log(log_level, message)
+
+def get_required_amounts_for_sparsities(desired_sparsities):
+    required_amounts = []
+
+    current_sparsity = 0.0
+    for (i, desired_sparsity) in enumerate(desired_sparsities):
+        if i == 0:
+            required_amount = desired_sparsity
+            current_sparsity = required_amount
+        else:
+            required_amount = (-current_sparsity + desired_sparsity) / (1 - current_sparsity)
+            current_sparsity += (1-current_sparsity) * required_amount
+        assertion.assert_equals(current_sparsity, desired_sparsities[i])
+        required_amounts.append(required_amount)
+        
+    return required_amounts
+
+
+def cleanup():
+    # Add your cleanup code here, such as closing files, releasing resources, etc.
+    print("Cleaning up before exit...")
+    # Terminate any child processes if needed
+    os.system("pkill -P {}".format(os.getpid()))
