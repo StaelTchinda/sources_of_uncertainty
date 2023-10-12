@@ -110,10 +110,20 @@ def main():
     # Evaluate the model
     if args.eval:
         trainer.validate(pl_module, data_module)
-        # pl_module.eval()
-        # utils.evaluate_model(pl_module, data_module.val_dataloader(), "MAP_on_val")
-    
+        pl_module.eval()
+        utils.evaluate_model(pl_module, data_module.val_dataloader(), "MAP_on_val")
+
+import atexit
+# Register the cleanup function to be called on exit
+atexit.register(utils.cleanup)
+
 if __name__ == '__main__':
-    main()
-        
+    try:
+        main()
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()   
 

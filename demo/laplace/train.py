@@ -71,7 +71,7 @@ def main():
     model_mode: config.mode.ModelMode = args.model
 
     # Initialize the dataloaders
-    data_module = config.data.lightning.get_default_datamodule(data_mode)
+    data_module = config.laplace.data.lightning.get_default_datamodule(data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Initialize the model
@@ -112,9 +112,8 @@ def main():
     laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path}) 
     laplace_trainer.validate(laplace_pl_module, data_module, verbose=args.verbose)
 
-    # laplace_curv.model.eval()
+    laplace_curv.model.eval()
     laplace_pl_module.eval()
-    # utils.evaluate_model(nn.Sequential(laplace_curv.model, nn.Softmax(dim=-1)), faster_train_dataloader, "MAP")
     if next(laplace_curv.model.parameters()).device.type != laplace_curv._device:
         laplace_curv.model.to(laplace_curv._device)
     if laplace_pl_module._pred_mode == "deterministic":
@@ -124,7 +123,17 @@ def main():
                          pred_type=laplace_pl_module._pred_type, n_samples=laplace_pl_module._n_samples)
     else:
         raise ValueError(f"Unknown prediction mode {laplace_pl_module._pred_mode}")
-if __name__ == '__main__':
-    main()
-        
 
+import atexit
+# Register the cleanup function to be called on exit
+atexit.register(utils.cleanup)
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()   
