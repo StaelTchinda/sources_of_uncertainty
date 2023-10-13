@@ -40,16 +40,19 @@ def get_default_train_dataloader_params(dataset_mode: DatasetMode):
         return {
             "batch_size": batch_size,
             "num_workers": num_workers,
+            "shuffle": True,
         }
     elif dataset_mode == "val":
         return {
             "batch_size": batch_size,
             "num_workers": num_workers,
+            "shuffle": False,
         }
     elif dataset_mode == "test":
         return {
             "batch_size": batch_size,
             "num_workers": num_workers,
+            "shuffle": False,
         }
     else:
         raise ValueError(f"Invalid dataset mode: {dataset_mode}")
