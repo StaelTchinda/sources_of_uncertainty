@@ -17,7 +17,6 @@ class BatchFilter(Callable):
         self.label = label
 
     def __call__(self, batch, outputs) -> List[int]:
-        print(f"filter_predictions - correct: {self.correct}, label: {self.label}")
         if len(outputs.shape) == 2:
             probs = outputs
         elif len(outputs.shape) == 3:
@@ -135,9 +134,9 @@ class KeepSamplesCallback(pl.Callback):
 
                 self._assert_shape_match()
 
-        if len(original_score_values) + len(top_score_values) >= len(self.score_values) and \
+        if len(original_score_values) + len(top_score_values) > len(self.score_values) and \
             len(self.score_values) < self.samples_count:
-            warnings.warn(f"Could not fill the callback container with {self.samples_count} samples, although got {len(original_score_values)} original scores and {len(top_score_values)} new scores. Only {len(self.score_values)} samples were found.")
+            warnings.warn(f"Could not further fill the callback container with {self.samples_count} samples, although got {len(original_score_values)} original scores and {len(top_score_values)} new scores. Only {len(self.score_values)} samples were found.")
             self._assert_shape_match()
 
     def _assert_shape_match(self):
@@ -175,16 +174,10 @@ class KeepSamplesLambdaCallback(KeepSamplesCallback):
 
     def filter_inputs(self, batch: Tuple[torch.Tensor, torch.Tensor], outputs: torch.Tensor) -> List[int]:
         idxs = self._filter_inputs(batch, outputs)
-        if isinstance(self._filter_inputs, BatchFilter):
-            print(f"filter_inputs - correct: {self._filter_inputs.correct}, label: {self._filter_inputs.label} lead to {len(idxs)} samples")
-
         return idxs
 
     def compute_scores(self, batch: Tuple[torch.Tensor, torch.Tensor], outputs: torch.Tensor) -> List[int]:
         return self._compute_scores(batch, outputs)
-
-# TODO: get rid of print statements
-
 
 
 class KeepImagesCallbackContainer:
@@ -216,11 +209,6 @@ class KeepImagesCallbackContainer:
 
         fig.suptitle(title)
 
-        if ncols > 1:
-            print(f"Axis have shape ({len(ax)}, {min([len(axis) for axis in ax])}-{max([len(axis) for axis in ax])})")
-        else:
-            print(f"Axis have shape ({len(ax)},)")
-
         for i in range(nrows):
             callback = self.callbacks[i]
             for j in range(ncols):
@@ -244,8 +232,6 @@ class KeepImagesCallbackContainer:
                 assertion.assert_equals(1, len(probs.shape))
 
                 pred = probs.argmax(-1)
-
-                print(f"Plotting {(i*ncols)+j+1}th sample at coord ({i}, {j}) with shape {callback.samples[j].shape}, prediction {pred}, ground truth {callback.gt_labels[j].item()}, and score {callback.score_values[j].item()}")
 
                 axis.set_title(f"{callback.gt_labels[j]:.0f} ; {pred} ; {probs[pred]:.1E} ; {callback.score_values[j].item():.1E}", fontsize=7, pad=0)
                 axis.imshow(callback.samples[j].permute(1,2,0), cmap="gray")
