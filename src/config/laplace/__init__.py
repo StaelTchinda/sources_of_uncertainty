@@ -4,7 +4,7 @@ from config.mode import ModelMode
 from config.laplace import fc as fc_config, lenet as lenet_config, vgg as vgg_config
 
 from config.laplace import lightning as lightning
-from config.laplace import data
+from config.laplace import data, eval
 
 def get_default_laplace_params(model_mode: ModelMode) -> Dict[Text, Any]:
     if model_mode == "fc":

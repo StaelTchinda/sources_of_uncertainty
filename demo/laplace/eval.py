@@ -2,13 +2,15 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Text
+from typing import List, Optional, Text, Union
 import logging
 import pytorch_lightning as pl
 import torch
 from torch.utils import data as torch_data
 import torch.distributions as dists
 from netcal import metrics as netcal
+import laplace
+
 
 def add_src_to_path(demo_dir_path: Optional[Path] = None):
     import sys, pathlib
@@ -21,13 +23,15 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 
 add_src_to_path()
 
-from util import checkpoint, data as data_utils
-from util import lightning as lightning_util
-from config.laplace import get_default_laplace_params
+from util import assertion, checkpoint
+from util import lightning as lightning_util, data as data_utils
+import config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
-import config
+
+from network.pruning import pruner as pruning_wrapper, util as pruning_util
+from callbacks import keep_sample
 
 
 # Take script arguments for the data mode and the model mode
@@ -42,22 +46,24 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='iris', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='fc', required=False)
+    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
 
     return parser.parse_args()
+
 
 def main():
     args: argparse.Namespace = parse_args()
 
-    model_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
-    laplace_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace" / "eval"
-    log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
+    # TODO: Rename file to visualize.py
+    laplace_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace"
+    log_path: Path = laplace_log_path / 'eval'
+    log_foldername: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
-        basic_config_params = config.log.get_log_basic_config(filename=log_path / f'{log_filename}.log')
+        basic_config_params = config.log.get_log_basic_config(filename=log_path / f'{log_foldername}.log')
         logging.basicConfig(**basic_config_params)
-        utils.verbose_and_log(f"Logging enabled: {log_filename}", args.verbose, args.log)
+        utils.verbose_and_log(f"Logging enabled: {log_foldername}", args.verbose, args.log)
     else:
         logging.disable(logging.CRITICAL)
 
@@ -68,37 +74,42 @@ def main():
     data_module = config.data.lightning.get_default_datamodule(data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
-    # Initialize the model
-    model = config.network.get_default_model(model_mode)
-    utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
-
-    pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
-
-    best_checkpoint_path = checkpoint.find_best_checkpoint(model_log_path)
-    if best_checkpoint_path is not None:
-        pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
-        pl_module.eval()
-    else:
-        raise ValueError("No checkpoint found")
-
-    # Initialize the LaPlace approximation
+    # Initialize the laplace approximation
     laplace_filename = config.laplace.get_default_laplace_name(model_mode)
-    laplace = checkpoint.load_object(laplace_filename, path_args={"save_path": log_path / 'laplace'}, library='dill')
-    laplace_params = get_default_laplace_params(model_mode)
-    if laplace is None:
-        data_module.setup("validate")
-        laplace = bayesian_laplace.compute_laplace_for_model(model, data_module.train_dataloader(), data_module.val_dataloader(), laplace_params)
-        checkpoint.save_object(laplace, laplace_filename, save_path=log_path / 'laplace', library='dill')
-    
-    laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace) 
-    laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": laplace_log_path})
-    laplace_trainer.validate(laplace_pl_module, data_module)
+    utils.verbose_and_log(f"Loading LaPlace approximation with name {laplace_filename} from {laplace_log_path}", args.verbose, args.log)
+    laplace_curv: laplace.ParametricLaplace = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill')
+    if laplace_curv is None:
+        raise ValueError("No laplace approximation found")
+    utils.verbose_and_log(f"Laplace loaded to model: {laplace_curv.model}", args.verbose, args.log)
 
-    # Evalauate the LaPlace approximation
-    data_module.setup("validate")
-    utils.evaluate_model(laplace, data_module.val_dataloader(), "LaPlace")
+    laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv) 
     
+    callback_containers = config.laplace.eval.get_callback_containers(model_mode)
+    additional_params = {
+        "default_root_dir": log_path,
+        "callbacks": [
+            callback for callback_container in callback_containers.values() for callback in callback_container.callbacks
+        ],
+    }
+    laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, additional_params) 
+
+    laplace_trainer.validate(laplace_pl_module, data_module)
+    if args.data in ["mnist", "cifar10"]:
+        for (container_name, callback_container) in callback_containers.items():
+            laplace_pl_module.logger.experiment.add_figure(container_name, callback_container.plot(), global_step=0)
+
+
+import atexit
+# Register the cleanup function to be called on exit
+atexit.register(utils.cleanup)
+
 if __name__ == '__main__':
-    main()
-        
+    try:
+        main()
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()        
 
