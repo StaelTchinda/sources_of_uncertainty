@@ -82,6 +82,22 @@ class LaplaceModule(pl.LightningModule):
 
         return outputs
 
+    def test_step(self, batch, batch_idx):
+        # Define the validation step logic here
+        inputs, labels = batch
+        outputs = self(inputs)
+
+        for metric_name in self.val_metrics.keys():
+            if self._pred_mode == "bayesian":
+                if hasattr(self.val_metrics[metric_name], "is_ensemble_metric") and self.val_metrics[metric_name].is_ensemble_metric:
+                    preds = outputs
+                else:
+                    preds = outputs.mean(dim=0)
+            else:
+                preds = outputs
+            self.val_metrics[metric_name](preds, labels)
+
+        return outputs
 
     def on_validation_epoch_end(self) -> None:
         for metric_name in self.val_metrics.keys():

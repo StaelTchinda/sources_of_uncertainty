@@ -49,6 +49,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
     parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
 
+    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
+
     return parser.parse_args()
 
 
@@ -93,7 +95,12 @@ def main():
     }
     laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, additional_params) 
 
-    laplace_trainer.validate(laplace_pl_module, data_module)
+    if args.stage == 'val':
+        laplace_trainer.validate(laplace_pl_module, data_module)
+    elif args.stage == 'test':
+        laplace_trainer.test(laplace_pl_module, data_module)
+    else:
+        raise ValueError(f"Invalid stage {args.stage}")
     if args.data in ["mnist", "cifar10"]:
         for (container_name, callback_container) in callback_containers.items():
             laplace_pl_module.logger.experiment.add_figure(container_name, callback_container.plot(), global_step=0)

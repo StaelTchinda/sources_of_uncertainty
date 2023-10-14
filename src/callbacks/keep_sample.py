@@ -1,7 +1,8 @@
-from typing import Callable, List, Literal, Text, Tuple, Optional
+from typing import Any, Callable, List, Literal, Text, Tuple, Optional
 import warnings
 from matplotlib import pyplot as plt
 from matplotlib.figure import Figure
+from pytorch_lightning.utilities.types import STEP_OUTPUT
 import torch
 import pytorch_lightning as pl
 
@@ -78,7 +79,13 @@ class KeepSamplesCallback(pl.Callback):
     def compute_scores(self, batch: Tuple[torch.Tensor], outputs: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError()	
 
-    def on_validation_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
+    def on_validation_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: Optional[STEP_OUTPUT], batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+        return self._on_predict_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+    
+    def on_test_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: Optional[STEP_OUTPUT], batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+        return self._on_predict_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+
+    def _on_predict_batch_end(self, trainer, pl_module, outputs, batch, batch_idx, dataloader_idx=0):
         assertion.assert_le(len(batch), 2, f"Expected batch to contain at least 2 elements (samples and labels), but got size {len(batch)}")
         assertion.assert_equals(len(batch[0]), len(batch[1]), f"Expected batch samples and labels to have the same size, but got {len(batch[0])} and {len(batch[1])}")
         # TODO: update the code to get rid of this fix. The first channel of the output should be the batch size, not the sampling size
@@ -104,7 +111,9 @@ class KeepSamplesCallback(pl.Callback):
         original_score_values = self.score_values.clone()
 
         new_sorted_score_values_next_index: int = 0
-        for index in range(self.samples_count):
+        # TODO: fix the fact that some samples are duplicated and go back to for-loop and no duplicate check
+        index = 0
+        while index < self.samples_count:
             new_score_values_next_index: Optional[int] = None
 
             if new_sorted_score_values_next_index >= len(top_score_values):
@@ -119,6 +128,19 @@ class KeepSamplesCallback(pl.Callback):
                     new_score_values_next_index = int(top_score_indices[new_sorted_score_values_next_index].item())
 
             if new_score_values_next_index is not None:
+                sample_is_new = True
+                for current_sample in self.samples:
+                    sample_is_new = sample_is_new and torch.any(samples[new_score_values_next_index].to(self.device) != current_sample)
+                    if not sample_is_new:
+                        warnings.warn(f"Found a duplicate sample at index {index} with score {score_values[new_score_values_next_index]}")
+                        break
+                if not sample_is_new:
+                    if index > 0:
+                        index-=1
+                    else:
+                        warnings.warn(f"Could not find a new sample at index {index} with score {score_values[new_score_values_next_index]}")
+                    continue
+
                 self.samples = insert_tensor_in_tensor(self.samples, samples[new_score_values_next_index].to(self.device), index)
                 self.outputs = insert_tensor_in_tensor(self.outputs, outputs[new_score_values_next_index].to(self.device), index)
                 self.gt_labels = insert_tensor_in_tensor(self.gt_labels, gt_labels[new_score_values_next_index].to(self.device), index)

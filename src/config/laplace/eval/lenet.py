@@ -30,6 +30,8 @@ def get_mnist_callback_containers() -> Dict[Text, KeepImagesCallbackContainer]:
     return {
         "correct_most_certain": KeepImagesCallbackContainer(mnist_keep_callback_filters(True), mnist_keep_callback_scorers(), highest=False),
         "incorrect_most_uncertain": KeepImagesCallbackContainer(mnist_keep_callback_filters(False), mnist_keep_callback_scorers(), highest=True),
+        "correct_most_uncertain": KeepImagesCallbackContainer(mnist_keep_callback_filters(True), mnist_keep_callback_scorers(), highest=True),
+        "incorrect_most_certain": KeepImagesCallbackContainer(mnist_keep_callback_filters(False), mnist_keep_callback_scorers(), highest=False),
         "most_certain": KeepImagesCallbackContainer(mnist_keep_all_callback_filters(), mnist_keep_callback_scorers(), highest=False),
         "most_uncertain": KeepImagesCallbackContainer(mnist_keep_all_callback_filters(), mnist_keep_callback_scorers(), highest=True)
     }
