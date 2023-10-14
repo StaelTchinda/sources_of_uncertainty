@@ -48,30 +48,34 @@ def get_default_dataset_params(dataset_mode: DatasetMode):
         raise ValueError(f"Invalid dataset mode: {dataset_mode}")
 
 def get_default_train_dataloader_params(dataset_mode: DatasetMode):
-    batch_size: int = 128
+    batch_size: int = 16 #64
     num_workers: int = 4
+
     if dataset_mode == "train":
         return {
             "batch_size": batch_size,
             "num_workers": num_workers,
+            "shuffle": True,
         }
     elif dataset_mode == "val":
         return {
             "batch_size": batch_size,
             "num_workers": num_workers,
+            "shuffle": False,
         }
     elif dataset_mode == "test":
         return {
             "batch_size": batch_size,
             "num_workers": num_workers,
+            "shuffle": False,
         }
     else:
         raise ValueError(f"Invalid dataset mode: {dataset_mode}")
 
 def get_default_datamodule_params():
     return {
-        "train_ratio": 400,#00,
-        "val_ratio": 100,#00,
+        "train_ratio": 40000,
+        "val_ratio": 10000,
         "train_dataset_params": get_default_dataset_params("train"),
         "val_dataset_params": get_default_dataset_params("val"),
         "test_dataset_params": get_default_dataset_params("test"),

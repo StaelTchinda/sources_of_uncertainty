@@ -4,7 +4,10 @@ import os
 
 import scipy
 import scipy.stats
+import random
+import numpy as np
 import torch
+import torch.backends.cudnn
 from torch import distributions as dists
 from torch.utils import data as torch_data
 from torch import nn
@@ -92,3 +95,12 @@ def cleanup():
     print("Cleaning up before exit...")
     # Terminate any child processes if needed
     os.system("pkill -P {}".format(os.getpid()))
+
+
+def make_deterministic(seed: int = 7777):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False

@@ -11,7 +11,8 @@ from network.lightning import laplace as bayesian_laplace
 def get_default_lightning_laplace_trainer_params() -> Dict[Text, Any]:
     return {
         "devices": 1,
-        "enable_progress_bar": True,  
+        "enable_progress_bar": True,
+        "deterministic": True, # To allow reproducibility
         "inference_mode": False # To allow gradient computation in validation mode # See https://github.com/Lightning-AI/lightning/issues/18222
     }
 
