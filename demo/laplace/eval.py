@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
     parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
 
-    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
+    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='test', required=False)
 
     return parser.parse_args()
 
@@ -85,6 +85,7 @@ def main():
     utils.verbose_and_log(f"Laplace loaded to model: {laplace_curv.model}", args.verbose, args.log)
 
     laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv) 
+    laplace_pl_module.save_hyperparameters(args)
     
     callback_containers = config.laplace.eval.get_callback_containers(model_mode)
     additional_params = {

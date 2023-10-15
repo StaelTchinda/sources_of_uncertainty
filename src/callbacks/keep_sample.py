@@ -113,33 +113,25 @@ class KeepSamplesCallback(pl.Callback):
         new_sorted_score_values_next_index: int = 0
         # TODO: fix the fact that some samples are duplicated and go back to for-loop and no duplicate check
         index = 0
-        while index < self.samples_count:
+        # As long as there are some spots in self.samples to fill and there are still some new samples to add
+        while index < self.samples_count and new_sorted_score_values_next_index < len(top_score_values):
             new_score_values_next_index: Optional[int] = None
-
-            if new_sorted_score_values_next_index >= len(top_score_values):
-                break
 
             if index >= len(self.score_values): # if we have not yet saved enough metric values
                 new_score_values_next_index = int(top_score_indices[new_sorted_score_values_next_index].item())
-                new_sorted_score_values_next_index += 1
             else:
                 compare = lambda x, y, highest: x>y if highest else x<y
                 if compare(top_score_values[new_sorted_score_values_next_index], self.score_values[index], self.highest):
                     new_score_values_next_index = int(top_score_indices[new_sorted_score_values_next_index].item())
 
             if new_score_values_next_index is not None:
+                # TODO. this part may be usseless. Delete it iy the case
                 sample_is_new = True
                 for current_sample in self.samples:
                     sample_is_new = sample_is_new and torch.any(samples[new_score_values_next_index].to(self.device) != current_sample)
                     if not sample_is_new:
                         warnings.warn(f"Found a duplicate sample at index {index} with score {score_values[new_score_values_next_index]}")
                         break
-                if not sample_is_new:
-                    if index > 0:
-                        index-=1
-                    else:
-                        warnings.warn(f"Could not find a new sample at index {index} with score {score_values[new_score_values_next_index]}")
-                    continue
 
                 self.samples = insert_tensor_in_tensor(self.samples, samples[new_score_values_next_index].to(self.device), index)
                 self.outputs = insert_tensor_in_tensor(self.outputs, outputs[new_score_values_next_index].to(self.device), index)
@@ -155,6 +147,9 @@ class KeepSamplesCallback(pl.Callback):
                     self.score_values = self.score_values[:self.samples_count]
 
                 self._assert_shape_match()
+
+            new_sorted_score_values_next_index += 1
+            index += 1
 
         if len(original_score_values) + len(top_score_values) > len(self.score_values) and \
             len(self.score_values) < self.samples_count:
@@ -255,7 +250,8 @@ class KeepImagesCallbackContainer:
 
                 pred = probs.argmax(-1)
 
-                axis.set_title(f"{callback.gt_labels[j]:.0f} ; {pred} ; {probs[pred]:.1E} ; {callback.score_values[j].item():.1E}", fontsize=7, pad=0)
+                color = "green" if callback.gt_labels[j] == pred else "red"
+                axis.set_title(f"{callback.gt_labels[j]:.0f} ; {pred} ; {probs[pred]:.1E} ; {callback.score_values[j].item():.1E}", fontsize=7, pad=0, color=color)
                 axis.imshow(callback.samples[j].permute(1,2,0), cmap="gray")
                 # TODO: adapt for color images
 
