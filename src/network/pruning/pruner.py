@@ -7,9 +7,12 @@ import torch
 import torch.nn as nn
 import pytorch_lightning as pl
 import torch.nn.utils.prune as prune
+from torch.nn.utils.convert_parameters import parameters_to_vector, vector_to_parameters
+
 import torchmetrics
 from network.lightning import laplace as lightning_laplace
 from network.pruning.util import get_parameter_mask
+from network.pruning import pruner as pruning_wrapper, util as pruning_util
 
 from util import assertion, verification, device as device_util
 
@@ -27,6 +30,8 @@ class Pruner:
         self.pruning_sparsity = pruning_sparsity
         self.pruning_parameter = pruning_parameter
 
+        self._original_weights = parameters_to_vector(self.original_model.parameters())
+
 
     @property
     def module_to_prune(self) -> Optional[nn.Module]:
@@ -35,13 +40,13 @@ class Pruner:
         else:
             return get_named_module(self.original_model, self.module_name_to_prune)
 
-    def prune(self):
+    def prune(self, permanent: bool = False):
         # Apply pruning based on the prior settings
         verification.check_not_none(self.module_name_to_prune)
         verification.check_not_none(self.pruning_strategy)
         verification.check_not_none(self.pruning_amount)
         verification.check_not_none(self.pruning_parameter)    
-        module = get_named_module(self.original_model, self.module_name_to_prune)
+        module = self.module_to_prune
 
         # Pruning can only be done on cpu
         module_device = next(module.parameters()).device
@@ -56,8 +61,28 @@ class Pruner:
 
         prune_based_on_strategy(module, strategy=self.pruning_strategy, amount=self.pruning_amount, parameter=self.pruning_parameter)
 
+        if permanent:
+            # Remove the pruning mask
+            prune.remove(module, self.pruning_parameter)
+
         if module_device != cpu_device:
             device_util.move_model_to_device(module, original_device)
+
+
+    def unprune(self):
+        verification.check_not_none(self.module_name_to_prune)
+        module = self.module_to_prune
+
+        # Check if the module was permanently pruned, i.e. if it does not have a parameter named <parameter>_mask 
+        permanent_bool: bool = not hasattr(module, f"{self.pruning_parameter}_mask")
+    
+        # Remove the pruning mask
+        pruning_util.undo_pruning(module)
+
+        if permanent_bool:
+            # Reapply the original weights
+            vector_to_parameters(self._original_weights, self.original_model.parameters())
+
 
 def get_named_module(model: nn.Module, module_name: Text) -> nn.Module:
     return dict(model.named_modules())[module_name]

@@ -127,8 +127,3 @@ def undo_pruning(model: nn.Module):
 
             layer.get_parameter(usual_name).data.mul_(0)
             layer.get_parameter(usual_name).data.add_(original_parameter.to(layer.get_parameter(usual_name).device))
-
-    if __debug__:
-        modular_sparsity: Dict[Text, Tuple[int, int]] = measure_modular_sparsity(model)
-        for (module_name, sparsitiy_counts) in modular_sparsity.items():
-            assertion.assert_equals(0, sparsitiy_counts[0], f"Expected at module {module_name} a sparsity of 0, but got {sparsitiy_counts[0]}/{sparsitiy_counts[1]}.")

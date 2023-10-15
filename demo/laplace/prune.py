@@ -1,5 +1,6 @@
 
 import argparse
+import copy
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Text, Union
@@ -81,8 +82,11 @@ def main():
     laplace_filename = config.laplace.get_default_laplace_name(model_mode)
     utils.verbose_and_log(f"Loading LaPlace approximation with name {laplace_filename} from {laplace_log_path}", args.verbose, args.log)
     laplace_curv: laplace.ParametricLaplace = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill')
+    original_laplace_curv = copy.deepcopy(laplace_curv)
+
     if laplace_curv is None:
         raise ValueError("No laplace approximation found")
+    utils.verbose_and_log(f"Laplace loaded to model: {laplace_curv.model}", args.verbose, args.log)
 
     laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_pruning_module(model_mode, laplace_curv) 
     
@@ -113,9 +117,9 @@ def main():
                 utils.verbose_and_log(f"Pruning {layer} with strategy {strategy} and amount {amount}", args.verbose, args.log)
                 laplace_pl_module.pruner.pruning_amount = amount
                 laplace_pl_module.pruner.pruning_sparsity = sparsity
-                laplace_pl_module.pruner.prune()
+                laplace_pl_module.pruner.prune(permanent=True)
 
-                # assertion.assert_is(laplace_pl_module.pruner.original_model, laplace_pl_module.laplace.backend.model)
+                assertion.assert_is(laplace_pl_module.pruner.original_model, laplace_pl_module.laplace.backend.model)
 
                 laplace_trainer.validate(laplace_pl_module, data_module)
 
@@ -127,7 +131,10 @@ def main():
                     laplace_pl_module.logger.experiment.add_scalar(f'sparsity/sparsity/{module_name}', sparsity_counts[0]/sparsity_counts[1], int(sparsity*100))
                     laplace_pl_module.logger.experiment.add_scalar(f'sparsity/inactive_weight_count/{module_name}', sparsity_counts[0], int(sparsity*100))
 
-            pruning_util.undo_pruning(laplace_pl_module.pruner.module_to_prune)  
+            if sparsity != 0.0:
+                laplace_pl_module.pruner.unprune()  
+                laplace_pl_module.laplace = copy.deepcopy(original_laplace_curv)
+                laplace_pl_module.pruner = pruning_wrapper.Pruner(laplace_pl_module.laplace.model, pruning_strategy=strategy)
     
 import atexit
 # Register the cleanup function to be called on exit
@@ -135,6 +142,7 @@ atexit.register(utils.cleanup)
 
 if __name__ == '__main__':
     try:
+        utils.make_deterministic()
         main()
     except Exception as e:
         # Handle exceptions gracefully, log errors, etc.
