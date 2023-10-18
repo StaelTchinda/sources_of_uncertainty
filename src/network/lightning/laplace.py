@@ -25,7 +25,7 @@ class LaplaceModule(pl.LightningModule):
         self.laplace.model.to(self._device)
         self.configure_prediction_mode(prediction_mode, pred_type, n_samples)
         self.val_metrics = nn.ModuleDict(val_metrics if val_metrics is not None else {})
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore="laplace")
 
 
     def configure_prediction_mode(self, mode: Literal["deterministic", "bayesian"], pred_type: Optional[Literal["glm", "nn"]]=None, n_samples: Optional[int] = None) -> None:
