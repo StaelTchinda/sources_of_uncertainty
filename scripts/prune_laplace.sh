@@ -3,7 +3,7 @@
 while [[ $# -gt 0 ]]
 do
 key="$1"
-device=0
+
 case $key in
     --data)
     data="$2"
@@ -35,8 +35,8 @@ done
 # Check if data and model are set
 if [ -z "$data" ] || [ -z "$model" ]
 then
-    echo "Usage: ./scripts/train_network.sh --data [data] --model [model]"
-    echo "Example: ./scripts/train_network.sh --data mnist --model lenet5"
+    echo "Usage: ./scripts/prune_laplace.sh --data [data] --model [model]"
+    echo "Example: ./scripts/prune_laplace.sh --data mnist --model lenet5"
     exit 1
 fi
 
@@ -48,7 +48,7 @@ PROJECT_PATH="$(dirname "$SCRIPT_PATH")"
 wait_for_exit="while true; do echo 'Do you want to exit? No = 0, Yes = 1'; read input; if [[ \$input -eq 1 ]]; then break; fi; done"
 
 # Launch training
-echo "Training network $model on dataset $data"
-session_name="network_train_${data}_${model}"
-tmux new -As $session_name -d "$PROJECT_PATH/venv/bin/python -O $PROJECT_PATH/demo/network/train.py --data $data --model $model --device $device $@; $wait_for_exit;"
+echo "Fitting laplace $model on dataset $data"
+session_name="laplace_train_${data}_${model}"
+tmux new -As $session_name -d "$PROJECT_PATH/venv/bin/python -O $PROJECT_PATH/demo/laplace/prune.py --data $data --model $model --device $device $@; $wait_for_exit;"
 tmux attach -t $session_name
