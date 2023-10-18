@@ -1,4 +1,5 @@
 
+from typing import Dict, List, Union
 from matplotlib import pyplot as plt
 import numpy as np
 import torch
@@ -8,7 +9,7 @@ import numpy as np
 
 
 # From https://matplotlib.org/stable/gallery/images_contours_and_fields/image_annotated_heatmap.html#sphx-glr-gallery-images-contours-and-fields-image-annotated-heatmap-py
-def heatmap(data, row_labels, col_labels, ax=None,
+def heatmap(data, row_labels: Union[List[str], Dict[int, str]], col_labels: Union[List[str], Dict[int, str]], ax=None,
             cbar_kw=None, cbarlabel="", **kwargs):
     """
     Create a heatmap from a numpy array and two lists of labels.
@@ -49,9 +50,15 @@ def heatmap(data, row_labels, col_labels, ax=None,
     cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
 
     # Show all ticks and label them with the respective list entries.
-    ax.set_xticks(np.arange(data.shape[1]), labels=col_labels)
-    ax.set_yticks(np.arange(data.shape[0]), labels=row_labels)
-
+    if isinstance(row_labels, dict):
+        ax.set_yticks(list(row_labels.keys()), labels=list(row_labels.values()))
+    else:
+        ax.set_yticks(np.arange(data.shape[0]), labels=row_labels)
+    if isinstance(col_labels, dict):
+        ax.set_xticks(list(col_labels.keys()), labels=list(col_labels.values()))
+    else:
+        ax.set_xticks(np.arange(data.shape[1]), labels=col_labels)
+    
     # Let the horizontal axes labeling appear on top.
     ax.tick_params(top=True, bottom=False,
                    labeltop=True, labelbottom=False)
@@ -63,10 +70,10 @@ def heatmap(data, row_labels, col_labels, ax=None,
     # Turn spines off and create white grid.
     # ax.spines[:].set_visible(False)
 
-    ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
-    ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
-    ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
-    ax.tick_params(which="minor", bottom=False, left=False)
+    # ax.set_xticks(np.arange(data.shape[1]+1)-.5, minor=True)
+    # ax.set_yticks(np.arange(data.shape[0]+1)-.5, minor=True)
+    # ax.grid(which="minor", color="w", linestyle='-', linewidth=3)
+    # ax.tick_params(which="minor", bottom=False, left=False)
 
     return im, cbar
 

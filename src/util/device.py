@@ -1,4 +1,4 @@
-from typing import Literal, Optional, Dict, Text
+from typing import Literal, Optional, Dict, Text, Union
 
 from laplace import ParametricLaplace
 
@@ -24,7 +24,10 @@ def move_model_to_device(model: nn.Module, device: torch.device) -> torch.device
     #         module.weight = module.weight.to(device)
     return original_device
 
-def move_laplace_to_device(laplace: laplace_lib.ParametricLaplace, device: torch.device) -> torch.device:
+def move_laplace_to_device(laplace: laplace_lib.ParametricLaplace, device: Union[torch.device, Text]) -> torch.device:
+    if isinstance(device, str):
+        device = torch.device(device)
+
     original_device = laplace._device
     laplace._device = device
     move_model_to_device(laplace.model, device)

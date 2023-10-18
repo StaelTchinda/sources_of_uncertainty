@@ -30,7 +30,8 @@ def predict(dataloader: torch_data.DataLoader, model: Union[nn.Module, laplace.P
         raise ValueError(f"Unknown model type {type(model)}") 
 
     try:
-        for x, _ in dataloader:
+        for batch in dataloader:
+            x = batch[0]
             if isinstance(model, ParametricLaplace):
                 verification.check_not_none(pred_type)
                 verification.check_not_none(n_samples)
@@ -47,7 +48,7 @@ def predict(dataloader: torch_data.DataLoader, model: Union[nn.Module, laplace.P
 
 def evaluate_model(model_: Union[nn.Module, laplace.ParametricLaplace], data_loader: torch_data.DataLoader, prefix: Text, pred_type: Literal['glm', 'nn'] = None, n_samples: int = None):
     probs = predict(data_loader, model_, pred_type=pred_type, n_samples=n_samples)
-    targets = torch.cat([y for x, y in data_loader], dim=0)
+    targets = torch.cat([batch[1] for batch in data_loader], dim=0)
     # if probs.numel() < 1000:
     #     print(f"probs: {probs}, \n preds: {probs.argmax(-1)}, \n targets: {targets}")
     acc = (probs.argmax(-1) == targets).float().mean()
@@ -102,5 +103,21 @@ def make_deterministic(seed: int = 7777):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
+    # torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True, warn_only=True)
+
+
+import signal
+
+class TimeoutException(Exception):
+    pass
+
+def timeout_handler(signum, frame):
+    raise TimeoutException
+
+def run_with_timeout(func, args=(), kwargs={}, timeout=120):
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(timeout)
+    result = func(*args, **kwargs)
+    return result

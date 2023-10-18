@@ -58,6 +58,21 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def calculate_loadings(principal_components: torch.Tensor, eigenvalues: torch.Tensor) -> List[torch.Tensor]:
+    assertion.assert_equals(2, len(principal_components.shape))
+    assertion.assert_equals(1, len(eigenvalues.shape))
+    assertion.assert_equals(principal_components.size(0), eigenvalues.size(0))
+
+    num_features = principal_components.shape[0]
+    num_components = principal_components.shape[1]
+    loadings = torch.zeros(num_features, num_components)
+
+    for i in range(num_components):
+        loading = principal_components[:, i] * torch.sqrt(eigenvalues[i])
+        loadings[:, i] = loading
+
+    return loadings
+
 def main():
     args: argparse.Namespace = parse_args()
 
@@ -107,14 +122,36 @@ def main():
 
 
     # Observe the eigenvalues of the Hessian
-    log_laplace_eigenvalues(laplace_curv, laplace_trainer.logger, params=[
-        ('layer', 'max'), ('layer', 'min'), ('layer', 'mean'),
-        ('layer_channel', 'min'), ('layer_channel', 'mean'), 
-        ('channel', 'max'), ('channel', 'min'), ('channel', 'mean'), ('layer_channel', 'max'), 
-        # ('weight', None), 
-        ])
+    # log_laplace_eigenvalues(laplace_curv, laplace_trainer.logger, params=[
+    #     ('layer', 'max'), ('layer', 'min'), ('layer', 'mean'),
+    #     ('layer_channel', 'min'), ('layer_channel', 'mean'), 
+    #     ('channel', 'max'), ('channel', 'min'), ('channel', 'mean'), ('layer_channel', 'max'), 
+    #     # ('weight', None), 
+    #     ])
+    log_laplace_eigenvalues(laplace_curv, laplace_trainer.logger, params=[ 
+        ('weight', None), 
+        ('layer', None),
+        ('layer_channel', None),
+    ])
+    
+import atexit
+# Register the cleanup function to be called on exit
+atexit.register(utils.cleanup)
+
+
+
+
+# Since the eigenvalues of the hessian are already sorted, a heatmap is not very valuable, because it will always be from lowest to highest (from left to right). A histogram would make more sense to analyse how much distributed the eigenvalues are. Labeling after layers or even channels is not possible.
+# This is however possible for the PCA loadings, as they are linked to the original weights. 
 
 if __name__ == '__main__':
-    main()
-        
+    try:
+        # Throw an error if the process takes more than 2 minutes
+        utils.run_with_timeout(main, timeout=60)
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()  
 

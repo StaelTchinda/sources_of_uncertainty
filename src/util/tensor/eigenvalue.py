@@ -8,7 +8,7 @@ from util import assertion
 from network import lightning as lightning
 
 NetworkGranularity = Literal['weight', 'channel', 'layer_channel', 'layer']
-ReduceMode = Literal['max', 'min', 'mean']
+ReduceMode = Literal['max', 'min', 'mean',  'median', 'sum']
 
 def get_reduce_fn(reduce_mode: ReduceMode) -> Callable[[torch.Tensor], torch.Tensor]:
     if reduce_mode == 'max':
@@ -45,6 +45,31 @@ def reduce_eigenvalues_per_channel(weight_eigenvalues: torch.Tensor, model_decom
 
     return channel_eigenvalues
 
+def reduce_loadings_per_layer_channel(weight_loadings: torch.Tensor, model_decomposition: Dict[Text, List[int]], reduce_mode: ReduceMode) -> Dict[Text, torch.Tensor]:
+    reduce_fn = get_reduce_fn(reduce_mode)
+
+    n_params = sum(sum(l) for l in model_decomposition.values())
+    assertion.assert_equals(n_params, weight_loadings.numel())
+
+    channel_loadings = {}
+    last_eigval_idx = 0
+    for (param_name, n_params_per_channel) in model_decomposition.items():
+        channel_loadings[param_name] = torch.zeros((len(n_params_per_channel)))
+    
+        channel_idx = 0
+        for n_channel_params in n_params_per_channel:
+            param_eigenvalues = weight_loadings[last_eigval_idx:last_eigval_idx+n_channel_params]
+            channel_loadings[param_name][channel_idx] = reduce_fn(param_eigenvalues)
+
+            channel_idx += 1
+            last_eigval_idx += n_channel_params
+
+        assertion.assert_equals(len(n_params_per_channel), channel_idx)
+    assertion.assert_equals(last_eigval_idx, n_params)
+
+    return channel_loadings  
+
+
 def reduce_eigenvalues_per_layer_channel(weight_eigenvalues: torch.Tensor, model_decomposition: Dict[Text, List[int]], reduce_mode: ReduceMode) -> Dict[Text, torch.Tensor]:
     reduce_fn = get_reduce_fn(reduce_mode)
 
@@ -65,6 +90,23 @@ def reduce_eigenvalues_per_layer_channel(weight_eigenvalues: torch.Tensor, model
             last_eigval_idx += n_channel_params
 
         assertion.assert_equals(len(n_params_per_channel), channel_idx)
+    assertion.assert_equals(last_eigval_idx, n_params)
+
+    return channel_eigenvalues    
+
+
+def collect_eigenvalues_per_layer(weight_eigenvalues: torch.Tensor, model_decomposition: Dict[Text, List[int]]) -> Dict[Text, torch.Tensor]:
+    n_params = sum(sum(l) for l in model_decomposition.values())
+    assertion.assert_equals(n_params, weight_eigenvalues.numel())
+
+    channel_eigenvalues = {}
+    last_eigval_idx = 0
+    for (param_name, n_params_per_channel) in model_decomposition.items():
+        layer_params_count = sum(n_params_per_channel)
+        channel_eigenvalues[param_name] = weight_eigenvalues[last_eigval_idx:last_eigval_idx+layer_params_count]
+
+        last_eigval_idx += layer_params_count
+
     assertion.assert_equals(last_eigval_idx, n_params)
 
     return channel_eigenvalues    

@@ -20,3 +20,17 @@ def compute_laplace_eigenvalues(laplace_curv: laplace.ParametricLaplace) -> Unio
         raise ValueError(f"Unknown type of LaPlace approximation {type(laplace_curv)}")
     
     return eigenvalues
+
+
+def compute_laplace_eigendecomp(laplace_curv: laplace.ParametricLaplace) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[KronBlockDecomposed, KronBlockDecomposed]]:
+    if isinstance(laplace_curv, laplace.FullLaplace):
+        eigenvalues, eigenvectors = torch.linalg.eigh(laplace_curv.posterior_covariance)
+    elif isinstance(laplace_curv, laplace.KronLaplace):
+        posterior_precision: laplace.utils.matrix.KronDecomposed = laplace_curv.posterior_precision
+        verification.check_is_instance(posterior_precision, laplace.utils.matrix.KronDecomposed)
+        eigenvalues = posterior_precision.eigenvalues
+        eigenvectors = posterior_precision.eigenvectors
+    else:
+        raise ValueError(f"Unknown type of LaPlace approximation {type(laplace_curv)}")
+    
+    return eigenvalues, eigenvectors
