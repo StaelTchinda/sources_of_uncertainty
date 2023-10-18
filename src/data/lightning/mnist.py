@@ -36,6 +36,10 @@ class MnistDataModule(CustomizableDataModule):
         # Assign train/val datasets for use in dataloaders
         if stage == "fit" or stage is None or stage == "validate":
             mnist_full = datasets.MNIST(train=True, **self.train_dataset_params)
+            if isinstance(self.train_ratio, int) and isinstance(self.val_ratio, int):
+                if len(mnist_full) > self.train_ratio + self.val_ratio:
+                    # Get a subset of the dataset
+                    mnist_full = torch_data.Subset(mnist_full, range(self.train_ratio + self.val_ratio))
             self.train_dataset, self.val_dataset = torch_data.random_split(mnist_full, [self.train_ratio, self.val_ratio])
 
         # Assign test dataset for use in dataloader(s)
