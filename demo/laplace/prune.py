@@ -3,7 +3,7 @@ import argparse
 import copy
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Text, Union
+from typing import Any, Dict, List, Optional, Text, Union
 import logging
 import pytorch_lightning as pl
 import torch
@@ -25,7 +25,7 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 add_src_to_path()
 
 from util import assertion, checkpoint
-from util import lightning as lightning_util, data as data_utils
+from util import lightning as lightning_util, data as data_utils, device as device_util
 import config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
@@ -50,9 +50,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='iris', required=False)
     parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='fc', required=False)
 
-    parser.add_argument('--strategy', help='specify which pruning strategy should be used', nargs='+', choices=pruning_wrapper.AVAILABLE_PRUNING_STRATEGIES, default=pruning_wrapper.AVAILABLE_PRUNING_STRATEGIES, required=False)
+    parser.add_argument('--strategy', help='specify which pruning strategy should be used', nargs='+', choices=pruning_wrapper.AVAILABLE_PRUNING_STRATEGIES, default=["l1_norm", "l2_norm"], required=False)
     parser.add_argument('--sparsity', help='specify which sparsity the module should have to have', nargs='*', default=None, required=False)
     parser.add_argument('--layer', help='specify which layers should be pruned we want the model to have', nargs='*', default=None, required=False)
+
+
+    parser.add_argument('--device', help='specify which devices to use', type=int, default=6, required=False)
 
     return parser.parse_args()
 
@@ -111,7 +114,11 @@ def main():
             laplace_pl_module.pruner.module_name_to_prune = layer
 
             prune_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "prune" / log_foldername / f"{strategy}" / f"{layer}"
-            laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": prune_log_path})
+        
+            additional_params: Dict[Text, Any] = {"default_root_dir": prune_log_path}
+            if args.device is not None:
+                additional_params["devices"] = [args.device]
+            laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, additional_params=additional_params)
 
             for (sparsity, amount) in zip(pruning_sparsities, pruning_amounts):
                 utils.verbose_and_log(f"Pruning {layer} with strategy {strategy} and amount {amount}", args.verbose, args.log)
@@ -121,6 +128,7 @@ def main():
 
                 assertion.assert_is(laplace_pl_module.pruner.original_model, laplace_pl_module.laplace.backend.model)
 
+                utils.make_deterministic()
                 laplace_trainer.validate(laplace_pl_module, data_module)
 
                 # Log details of sparsity for verification. It's important to log after the validation for the logger object to be initialized.
@@ -142,8 +150,15 @@ atexit.register(utils.cleanup)
 
 if __name__ == '__main__':
     try:
-        utils.make_deterministic()
         main()
+    except torch.cuda.OutOfMemoryError as e:
+        print(torch.cuda.memory_summary(device=None, abbreviated=False))
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        print_gpu_variables_usage()
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()        
     except Exception as e:
         # Handle exceptions gracefully, log errors, etc.
         print("An error occurred:", str(e))

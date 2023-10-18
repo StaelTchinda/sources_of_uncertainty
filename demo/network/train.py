@@ -54,6 +54,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-eval', dest='eval', action='store_false')
     parser.set_defaults(eval=True)
 
+    parser.add_argument('--device', help='specify which devices to use', type=int, default=2, required=False)
+
     return parser.parse_args()
 
 def main():
@@ -102,7 +104,10 @@ def main():
             # pl_module.eval()
 
     # Eventually train the model
-    trainer = network_config.lightning.get_default_lightning_trainer(model_mode, {"default_root_dir": log_path})
+    additional_params = {"default_root_dir": log_path}
+    if args.device is not None:
+        additional_params["devices"] = args.device
+    trainer = network_config.lightning.get_default_lightning_trainer(model_mode, additional_params)
     if best_checkpoint_path is None and pretrained_path is None:
         utils.verbose_and_log(f"Training model", args.verbose, args.log)
         trainer.fit(pl_module, data_module)

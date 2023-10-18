@@ -51,10 +51,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
     parser.set_defaults(checkpoint=True)
 
+    parser.add_argument('--device', help='specify which devices to use', type=int, default=2, required=False)
+
     return parser.parse_args()
 
 def main():
     args: argparse.Namespace = parse_args()
+
+    # Set the device
+    torch.cuda.set_device(args.device)
 
     model_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
     log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
@@ -110,6 +115,8 @@ def main():
     # Evaluate the LaPlace approximation
     laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
     laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path}) 
+    
+    utils.make_deterministic()
     laplace_trainer.validate(laplace_pl_module, data_module, verbose=args.verbose)
 
     laplace_curv.model.eval()
