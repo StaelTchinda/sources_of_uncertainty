@@ -43,7 +43,8 @@ class VarianceEstimator(FloatMetricEstimator):
                    batch_index: Optional[int] = None) -> None:
         feed_params: Dict[Text, Any] = locals()
         FloatMetricEstimator.assert_round_and_batch_index(sampling_index, batch_index)
-        assert_contains([1, 2], len(probs.shape), f"Expected shape (C) or (N, C), but got shape {probs.shape}")
+        # TODO: rethink this assertion. It hrows an error when trying to compute the variances after each layer
+        # assert_contains([1, 2], len(probs.shape), f"Expected shape (C) or (N, C), but got shape {probs.shape}")
 
         if self.warn_mode and self._metric_computed:
             warnings.warn(f"Probs were fed after the metric value has been computed")

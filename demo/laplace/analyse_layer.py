@@ -137,7 +137,7 @@ def main():
                 laplace_trainer.logger.experiment.add_histogram(f"laplace_layer/{module_name}", variance.detach().cpu().numpy(), 0)
             except TypeError as e:
                 from util.log.histogram import histogram_vector
-                laplace_trainer.logger.experiment.add_figure(f"laplace_layer/{module_name}", histogram_vector(variance.detach().cpu().numpy()))
+                laplace_trainer.logger.experiment.add_figure(f"laplace_layer/{module_name}", histogram_vector(variance.flatten().detach().cpu().numpy()))
 
                 laplace_trainer.logger.experiment.add_text("error", f"Could not log variances: {e}")
                 warnings.warn(f"Could not log variances: {e}")

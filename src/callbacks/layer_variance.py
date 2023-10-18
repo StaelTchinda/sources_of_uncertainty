@@ -41,35 +41,47 @@ class SaveLayerVarianceCallback(pl.Callback):
         return {self._module_names[module]: metric.get_metric_value() for (module, metric) in self._variances.items()}
 
     def on_validation_start(self, trainer, pl_module):
+        # TODO: Check this line does not have any impact and delete it
         print("Validation is starting")
         if self.stage == 'val':
             assert isinstance(pl_module, lightning.laplace.LaplaceModule)
-            self.register_hooks(pl_module.laplace.model)
-            pl_module.laplace.model.register_forward_hook(lambda module, input, output: self.module_hook_fn(module, input, torch.softmax(output, dim=-1)))
-            self._module_names[pl_module.laplace.model] = 'model'
+            self.register_submodules(pl_module.laplace.model)
+            self.register_module(pl_module.laplace.model, 'model')
+            # TODO: think if I should also log the results of the model after softmax
+            # self.register_hooks(pl_module.laplace.model)
+            # pl_module.laplace.model.register_forward_hook(lambda module, input, output: self.module_hook_fn(module, input, torch.softmax(output, dim=-1)))
+            # self._module_names[pl_module.laplace.model] = 'model'
 
+    # TODO: Check this function does not have any impact and delete it
     def on_validation_end(self, trainer, pl_module):
         print("Validation is ending")
 
-    def on_validation_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: Optional[STEP_OUTPUT], batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+    def on_validation_batch_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
         if self.stage == 'val':
             self.globally_set_batch_index(batch_idx)
-        return super().on_validation_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
-    
-    def register_hooks(self, module: nn.Module):
+            self.globally_set_sampling_index(0)
+        return super().on_validation_batch_start(trainer, pl_module, batch, batch_idx, dataloader_idx)
+
+    def register_submodules(self, module: nn.Module):
         for (sub_module_name, sub_module) in module.named_modules():
             if not hasattr(sub_module, 'weight'):
                 continue
-            sub_module.register_forward_hook(self.module_hook_fn)
-            self._module_names[sub_module] = sub_module_name
+            self.register_module(sub_module, sub_module_name)
+
+    def register_module(self, module: nn.Module, module_name: Optional[Text] = None):
+        self._variances[module] = metrics.VarianceEstimator()
+        self._sampling_index[module] = 0
+        self._batch_index[module] = 0
+        self._module_names[module] = module_name if module_name is not None else module.__class__.__name__
+        module.register_forward_hook(self.module_hook_fn)
 
     def module_hook_fn(self, module: nn.Module, input: torch.Tensor, output: torch.Tensor):
-        if module not in self._variances:
-            self._variances[module] = metrics.VarianceEstimator()
-        if module not in self._sampling_index:
-            self._sampling_index[module] = 0
-        if module not in self._batch_index:
-            self._batch_index[module] = 0
+        # if module not in self._variances:
+        #     self._variances[module] = metrics.VarianceEstimator()
+        # if module not in self._sampling_index:
+        #     self._sampling_index[module] = 0
+        # if module not in self._batch_index:
+        #     self._batch_index[module] = 0
         self._variances[module].feed_probs(output, gt_labels=None, samples=None,
                                            sampling_index=self._sampling_index[module], 
                                            batch_index=self._batch_index[module])
