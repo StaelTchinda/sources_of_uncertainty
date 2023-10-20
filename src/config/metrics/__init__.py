@@ -20,7 +20,9 @@ def get_default_deterministic_val_metrics(num_classes: int) -> Dict[Text, torchm
 def get_default_ensemble_val_metrics(num_classes: int) -> Dict[Text, torchmetrics.Metric]:
     deterministic_metrics = get_default_deterministic_val_metrics(num_classes)
     special_ensemble_metrics = {
+        "mutual_information": metrics.MutualInformation(),
         "entropy": metrics.ShannonEntropy(dist="categorical"),
+        "variation_ratio": metrics.VariationRatio(num_classes=num_classes),
         "std": metrics.StandardDev(top_k="all"),
         "std_1": metrics.StandardDev(top_k=1),
         "std_3": metrics.StandardDev(top_k=3),
