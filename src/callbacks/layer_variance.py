@@ -44,9 +44,9 @@ class SaveLayerVarianceCallback(pl.Callback):
         # TODO: Check this line does not have any impact and delete it
         print("Validation is starting")
         if self.stage == 'val':
-            assert isinstance(pl_module, lightning.laplace.LaplaceModule)
-            self.register_submodules(pl_module.laplace.model)
-            self.register_module(pl_module.laplace.model, 'model')
+            if isinstance(pl_module, lightning.mc_dropout.McDropoutModule):
+                self.register_submodules(pl_module.dropout_hook.model)
+                self.register_module(pl_module.dropout_hook.model, 'model')
             # TODO: think if I should also log the results of the model after softmax
             # self.register_hooks(pl_module.laplace.model)
             # pl_module.laplace.model.register_forward_hook(lambda module, input, output: self.module_hook_fn(module, input, torch.softmax(output, dim=-1)))
