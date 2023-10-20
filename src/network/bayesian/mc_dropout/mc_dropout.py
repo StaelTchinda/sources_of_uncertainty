@@ -8,9 +8,10 @@ import torch
 from torch import nn
 
 from network.bayesian.util import BayesianModuleLike
+from util import verification
 
-
-def default_submodules_to_dropouts(model: nn.Module, p: float, mode: Literal['relu', 'existing'] = 'relu') -> Dict[nn.Module,  nn.modules.dropout._DropoutNd]:
+# FIXME: this function fails with FeedForward
+def default_submodules_to_dropouts(model: nn.Module, p: Optional[float], mode: Literal['relu', 'existing'] = 'relu') -> Dict[nn.Module,  nn.modules.dropout._DropoutNd]:
     default_modules: Dict[nn.Module, nn.modules.dropout._DropoutNd] = {}
     prev_module: Optional[nn.Module] = None
     for (module_name, module) in model.named_modules():
@@ -32,8 +33,10 @@ def default_submodules_to_dropouts(model: nn.Module, p: float, mode: Literal['re
 
         if mode == 'relu':
             if isinstance(prev_module, nn.Linear) or isinstance(prev_module, nn.Conv1d) or isinstance(prev_module, nn.BatchNorm1d):
+                verification.check_not_none(p)
                 default_modules[module] = nn.Dropout(p)
             elif isinstance(prev_module, nn.Conv2d) or isinstance(prev_module, nn.BatchNorm2d):
+                verification.check_not_none(p)
                 default_modules[module] = nn.Dropout2d(p)
             else:
                 raise ValueError(f"Unexpected module type before a ReLU: {type(prev_module)}")
@@ -45,9 +48,9 @@ def default_submodules_to_dropouts(model: nn.Module, p: float, mode: Literal['re
 
 
 class DropoutHook:
-    def __init__(self, model: nn.Module, p: float, submodule_to_dropouts: Optional[Dict[nn.Module, nn.modules.dropout._DropoutNd]]=None):
+    def __init__(self, model: nn.Module, p: Optional[float]=None, submodule_to_dropouts: Optional[Dict[nn.Module, nn.modules.dropout._DropoutNd]]=None):
         self.model: nn.Module = model
-        self.dropout_prob: float = p
+        # self.dropout_prob: float = p
 
         if submodule_to_dropouts is None:
             self.submodule_to_dropouts: Dict[nn.Module, nn.modules.dropout._DropoutNd] = default_submodules_to_dropouts(self.model, p)
@@ -86,14 +89,14 @@ class DropoutHook:
         else:
             raise ValueError(f"Submodule {submodule} not found in registered submodules: {self.submodule_to_dropouts}")
 
-    def init_submodule_to_dropouts(self, submodule_name_to_dropout_methods: Dict[Text, Type[nn.modules.dropout._DropoutNd]]) -> None:
-        # To avoid creating multiple dropout objects of the same type, we create a dictionary of dropout methods
-        dropout_method_to_dropout: Dict[Type[nn.modules.dropout._DropoutNd], nn.modules.dropout._DropoutNd] = {}
-        for (module_name, dropout_method) in submodule_name_to_dropout_methods.items():
-            submodule = self.model.get_submodule(module_name)
-            if dropout_method not in dropout_method_to_dropout:
-                dropout_method_to_dropout[dropout_method] = dropout_method(p=self.dropout_prob)
-            self.submodule_to_dropouts[submodule] = dropout_method_to_dropout[dropout_method]
+    # def init_submodule_to_dropouts(self, submodule_name_to_dropout_methods: Dict[Text, Type[nn.modules.dropout._DropoutNd]]) -> None:
+    #     # To avoid creating multiple dropout objects of the same type, we create a dictionary of dropout methods
+    #     dropout_method_to_dropout: Dict[Type[nn.modules.dropout._DropoutNd], nn.modules.dropout._DropoutNd] = {}
+    #     for (module_name, dropout_method) in submodule_name_to_dropout_methods.items():
+    #         submodule = self.model.get_submodule(module_name)
+    #         if dropout_method not in dropout_method_to_dropout:
+    #             dropout_method_to_dropout[dropout_method] = dropout_method(p=self.dropout_prob)
+    #         self.submodule_to_dropouts[submodule] = dropout_method_to_dropout[dropout_method]
 
 
     def check_integrity(self) -> None:
