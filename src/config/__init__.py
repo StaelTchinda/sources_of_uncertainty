@@ -1,1 +1,1 @@
-from config import laplace, log, mode, path, data, network, metrics, prune, mc_dropout
+from config import bayesian, log, mode, path, data, network, metrics, prune

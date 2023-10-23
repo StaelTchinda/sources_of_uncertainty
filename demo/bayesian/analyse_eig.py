@@ -2,13 +2,10 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Text, Union
+from typing import Dict, List, Literal, Optional, Text, Union
 import logging
-import warnings
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import tensorboard as pl_tensorboard
-from pytorch_lightning.utilities.types import STEP_OUTPUT
-from torch.utils.tensorboard.writer import SummaryWriter
+from lightning.pytorch.loggers import TensorBoardLogger
 import torch
 from torch import nn
 from torch.utils import data as torch_data
@@ -28,14 +25,15 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 
 add_src_to_path()
 
+from util.log.eigenvalue import log_laplace_eigenvalues
 from util import assertion, checkpoint, verification, data as data_utils
 from util import lightning as lightning_util, plot as plot_util
+import config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
 import metrics
-import config
-from callbacks.layer_variance import SaveLayerVarianceCallback
+
 
 
 # Take script arguments for the data mode and the model mode
@@ -60,12 +58,27 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def calculate_loadings(principal_components: torch.Tensor, eigenvalues: torch.Tensor) -> List[torch.Tensor]:
+    assertion.assert_equals(2, len(principal_components.shape))
+    assertion.assert_equals(1, len(eigenvalues.shape))
+    assertion.assert_equals(principal_components.size(0), eigenvalues.size(0))
+
+    num_features = principal_components.shape[0]
+    num_components = principal_components.shape[1]
+    loadings = torch.zeros(num_features, num_components)
+
+    for i in range(num_components):
+        loading = principal_components[:, i] * torch.sqrt(eigenvalues[i])
+        loadings[:, i] = loading
+
+    return loadings
+
 def main():
     args: argparse.Namespace = parse_args()
 
     model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
     laplace_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace"
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace" / "analyse" / "layer"
+    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace" / "analyse" / "eig"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -82,7 +95,6 @@ def main():
     data_module = config.data.lightning.get_default_datamodule(data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
-
     # Initialize the model
     model = config.network.get_default_model(model_mode)
     utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
@@ -91,63 +103,55 @@ def main():
     # Load the best checkpoint
     best_checkpoint_path = checkpoint.find_best_checkpoint(model_checkpoints_path)
     if best_checkpoint_path is not None:
-        pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
+        pl_module = pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
         pl_module.eval()
     else:
         raise ValueError(f"No checkpoint found at {model_checkpoints_path}")
 
     # Load the LaPlace approximation
-    laplace_filename = config.laplace.get_default_laplace_name(model_mode)
+    laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
     laplace_curv: laplace.ParametricLaplace = None
     if args.checkpoint is True:
         laplace_curv = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_checkpoints_path}, library='dill')
     if laplace_curv is None:
         raise ValueError("No LaPlace approximation found")
 
-    # Goal 1: anaylse the evolution of the variance over the layers
-    # Approach:
-    # - add a/multiple hook(s) to the model, which 
-    #    - computes the variance of the output of each layer
-    #    - saves it
-    #    - logs it
-    # - run the model on the validation set
-    variance_callback = SaveLayerVarianceCallback()
-
     # Initialize the LaPlace module
-    laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
-    laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(
-        model_mode, 
-        {
-            "default_root_dir": log_path,
-            "callbacks": [variance_callback]
-        }
-    )
+    laplace_pl_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
+    laplace_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path})
 
-    laplace_trainer.validate(laplace_pl_module, data_module)
-    if args.verbose:
-        print("Finished validation")
 
-        print(f"Variances per layer")
-        for module, variance in variance_callback.named_variances().items():
-            print(f"{module} : {variance}")
-
-    if isinstance(laplace_trainer.logger, pl_tensorboard.TensorBoardLogger):
-        for module_name, variance in variance_callback.named_variances().items():
-            try:
-                laplace_trainer.logger.experiment.add_histogram(f"laplace_layer/{module_name}", variance.detach().cpu().numpy(), 0)
-            except TypeError as e:
-                from util.log.histogram import histogram_vector
-                laplace_trainer.logger.experiment.add_figure(f"laplace_layer/{module_name}", histogram_vector(variance.flatten().detach().cpu().numpy()))
-
-                laplace_trainer.logger.experiment.add_text("error", f"Could not log variances: {e}")
-                warnings.warn(f"Could not log variances: {e}")
-    else:
-        warnings.warn("No TensorBoardLogger found, variances cannot be logged")
+    # Observe the eigenvalues of the Hessian
+    # log_laplace_eigenvalues(laplace_curv, laplace_trainer.logger, params=[
+    #     ('layer', 'max'), ('layer', 'min'), ('layer', 'mean'),
+    #     ('layer_channel', 'min'), ('layer_channel', 'mean'), 
+    #     ('channel', 'max'), ('channel', 'min'), ('channel', 'mean'), ('layer_channel', 'max'), 
+    #     # ('weight', None), 
+    #     ])
+    log_laplace_eigenvalues(laplace_curv, laplace_trainer.logger, params=[ 
+        # ('weight', None), 
+        # ('layer', None),
+        ('layer_channel', 'min'),
+    ])
+    
+import atexit
+# Register the cleanup function to be called on exit
+atexit.register(utils.cleanup)
 
 
 
+
+# Since the eigenvalues of the hessian are already sorted, a heatmap is not very valuable, because it will always be from lowest to highest (from left to right). A histogram would make more sense to analyse how much distributed the eigenvalues are. Labeling after layers or even channels is not possible.
+# This is however possible for the PCA loadings, as they are linked to the original weights. 
 
 if __name__ == '__main__':
-    main()
-        
+    try:
+        # Throw an error if the process takes more than 2 minutes
+        utils.run_with_timeout(main, timeout=60)
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()  
 

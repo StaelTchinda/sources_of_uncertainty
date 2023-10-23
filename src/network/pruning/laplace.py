@@ -76,7 +76,8 @@ class LaplacePruningModule(lightning_laplace.LaplaceModule):
             return probs
 
     def on_validation_epoch_end(self) -> None:
-        for metric_name in self.val_metrics.keys():
-            self.logger.experiment.add_scalar(f'prune/{metric_name}', self.val_metrics[metric_name].compute(), global_step=int(100*self.pruner.pruning_sparsity))
-            self.val_metrics[metric_name].reset()
+        for (metric_name, metric) in self.val_metrics.items():
+            metric_value = metric.compute()
+            metric.reset()
+            self.logger.experiment.add_scalar(f'prune/{metric_name}', metric_value, global_step=int(100*self.pruner.pruning_sparsity))
         return pl.LightningModule.on_validation_epoch_end(self)

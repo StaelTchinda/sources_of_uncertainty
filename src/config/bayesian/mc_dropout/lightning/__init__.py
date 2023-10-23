@@ -5,8 +5,8 @@ from torch import nn
 
 from config.mode import ModelMode
 from network.lightning import mc_dropout as bayesian_mc_dropout
-from config.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config
-from network.bayesian.mc_dropout import mc_dropout 
+from config.bayesian.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config
+from network.bayesian import mc_dropout 
 
 def get_default_mc_dropout_lightning_module_params(model_mode: ModelMode) -> Dict[Text, Any]:
     if model_mode == "fc":

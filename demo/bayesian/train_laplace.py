@@ -76,7 +76,7 @@ def main():
     model_mode: config.mode.ModelMode = args.model
 
     # Initialize the dataloaders
-    data_module = config.laplace.data.lightning.get_default_datamodule(data_mode)
+    data_module = config.bayesian.laplace.data.lightning.get_default_datamodule(data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Initialize the model
@@ -98,23 +98,23 @@ def main():
             raise ValueError("No checkpoint or pretrained model found")
 
     # Initialize the LaPlace approximation
-    laplace_filename = config.laplace.get_default_laplace_name(model_mode)
+    laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
     laplace_curv: laplace.ParametricLaplace = None
     if args.checkpoint is True:
         utils.verbose_and_log(f"Loading LaPlace approximation from {laplace_filename}", args.verbose, args.log)
         laplace_curv = checkpoint.load_object(laplace_filename, path_args={"save_path": log_path / 'laplace'}, library='dill')
     if laplace_curv is None:
         utils.verbose_and_log(f"Computing LaPlace approximation", args.verbose, args.log)
-        laplace_params = config.laplace.get_default_laplace_params(model_mode)
-        prior_optimization_params = config.laplace.get_default_laplace_prior_optimization_params(model_mode)
+        laplace_params = config.bayesian.laplace.get_default_laplace_params(model_mode)
+        prior_optimization_params = config.bayesian.laplace.get_default_laplace_prior_optimization_params(model_mode)
         data_module.setup(stage="fit")
         laplace_curv = bayesian_laplace.compute_laplace_for_model(model, data_module.train_dataloader(), data_module.val_dataloader(), laplace_params, prior_optimization_params, verbose=args.verbose)
         utils.verbose_and_log(f"Saving LaPlace approximation to {laplace_filename}", args.verbose, args.log)
         checkpoint.save_object(laplace_curv, laplace_filename, save_path=log_path / 'laplace', library='dill')
 
     # Evaluate the LaPlace approximation
-    laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
-    laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path}) 
+    laplace_pl_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
+    laplace_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path}) 
     
     utils.make_deterministic()
     laplace_trainer.validate(laplace_pl_module, data_module, verbose=args.verbose)

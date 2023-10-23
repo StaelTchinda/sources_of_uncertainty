@@ -1,6 +1,6 @@
 from typing import Dict, Text
 from callbacks.keep_sample import KeepImagesCallbackContainer
-from config.laplace.eval import lenet as lenet_config
+from config.bayesian.laplace.eval import lenet as lenet_config
 from config.mode import ModelMode
 
 

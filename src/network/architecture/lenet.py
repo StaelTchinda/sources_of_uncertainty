@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, List, Optional, Text
 import torch
 from torch import nn
 from torch.nn import functional as F
-from network.bayesian.mc_dropout.mc_dropout import DropoutHook
+from network.bayesian.mc_dropout import DropoutHook
 
 
 

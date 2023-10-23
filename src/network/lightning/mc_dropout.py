@@ -10,7 +10,7 @@ import torchmetrics
 import laplace as laplace_lib
 from laplace import utils as laplace_libutils
 import laplace.utils.matrix
-from network.bayesian.mc_dropout.mc_dropout import DropoutHook
+from network.bayesian.mc_dropout import DropoutHook
 
 from util import verification, assertion, device as device_util
 

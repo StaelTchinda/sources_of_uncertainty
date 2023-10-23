@@ -7,7 +7,7 @@ from torchvision.models import VGG11_Weights, VGG13_Weights, VGG16_Weights, VGG1
 from torchvision.models.vgg import make_layers, cfgs
 from torchvision.models.resnet import Bottleneck
 
-from network.bayesian.mc_dropout.mc_dropout import DropoutHook
+from network.bayesian.mc_dropout import DropoutHook
 
 
 

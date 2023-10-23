@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torchvision.models import Wide_ResNet50_2_Weights, Wide_ResNet101_2_Weights, ResNet, wide_resnet50_2, wide_resnet101_2
 from torchvision.models.resnet import Bottleneck, BasicBlock
-from network.bayesian.mc_dropout.mc_dropout import DropoutHook
+from network.bayesian.mc_dropout import DropoutHook
 
 
 class WideResNet50(ResNet):

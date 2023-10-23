@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torchvision.models import ResNet18_Weights, ResNet34_Weights, ResNet50_Weights, ResNet101_Weights, ResNet, resnet18, resnet34, resnet50
 from torchvision.models.resnet import Bottleneck, BasicBlock
-from network.bayesian.mc_dropout.mc_dropout import DropoutHook
+from network.bayesian.mc_dropout import DropoutHook
 
 
 class ResNet18(ResNet):

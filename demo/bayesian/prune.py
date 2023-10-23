@@ -55,7 +55,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--layer', help='specify which layers should be pruned we want the model to have', nargs='*', default=None, required=False)
 
 
-    parser.add_argument('--device', help='specify which devices to use', type=int, default=6, required=False)
+    parser.add_argument('--device', help='specify which devices to use', type=int, default=0, required=False)
 
     return parser.parse_args()
 
@@ -82,7 +82,7 @@ def main():
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Initialize the laplace approximation
-    laplace_filename = config.laplace.get_default_laplace_name(model_mode)
+    laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
     utils.verbose_and_log(f"Loading LaPlace approximation with name {laplace_filename} from {laplace_log_path}", args.verbose, args.log)
     laplace_curv: laplace.ParametricLaplace = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill')
     original_laplace_curv = copy.deepcopy(laplace_curv)
@@ -91,7 +91,7 @@ def main():
         raise ValueError("No laplace approximation found")
     utils.verbose_and_log(f"Laplace loaded to model: {laplace_curv.model}", args.verbose, args.log)
 
-    laplace_pl_module = config.laplace.lightning.get_default_lightning_laplace_pruning_module(model_mode, laplace_curv) 
+    laplace_pl_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_pruning_module(model_mode, laplace_curv) 
     
     pruning_layer_names: List[Text] = []
     if args.layer is not None:
@@ -118,7 +118,7 @@ def main():
             additional_params: Dict[Text, Any] = {"default_root_dir": prune_log_path}
             if args.device is not None:
                 additional_params["devices"] = [args.device]
-            laplace_trainer = config.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, additional_params=additional_params)
+            laplace_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, additional_params=additional_params)
 
             for (sparsity, amount) in zip(pruning_sparsities, pruning_amounts):
                 utils.verbose_and_log(f"Pruning {layer} with strategy {strategy} and amount {amount}", args.verbose, args.log)

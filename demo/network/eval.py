@@ -23,7 +23,7 @@ add_src_to_path()
 
 from util import config, checkpoint
 from util import lightning as lightning_util
-from config.laplace import get_default_laplace_params
+from config.bayesian.laplace import get_default_laplace_params
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
@@ -88,7 +88,7 @@ def main():
     utils.evaluate_model(model, val_dataloader, "MAP")
 
     # Initialize the LaPlace approximation
-    laplace_filename = config.laplace.get_default_laplace_name(model_mode)
+    laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
     laplace = checkpoint.load_object(laplace_filename, path_args={"save_path": log_path / 'laplace'}, library='dill')
     laplace_params = get_default_laplace_params(model_mode)
     if laplace is None:

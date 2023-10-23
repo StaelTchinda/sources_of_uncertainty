@@ -5,7 +5,7 @@ from torch import nn
 
 from config.mode import ModelMode
 from network.lightning import laplace as bayesian_laplace
-from config.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config
+from config.bayesian.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config
 from network.pruning import laplace as laplace_pruning
 
 def get_default_laplace_lightning_module_params(model_mode: ModelMode) -> Dict[Text, Any]:

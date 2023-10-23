@@ -97,6 +97,9 @@ def cleanup():
     # Terminate any child processes if needed
     os.system("pkill -P {}".format(os.getpid()))
 
+def register_cleanup():
+    import atexit
+    atexit.register(cleanup)
 
 def make_deterministic(seed: int = 7777):
     random.seed(seed)
