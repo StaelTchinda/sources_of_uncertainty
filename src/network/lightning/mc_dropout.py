@@ -25,7 +25,7 @@ class McDropoutModule(pl.LightningModule):
         # self.dropout_hook.model.to(self._device)
         self.configure_prediction_mode(prediction_mode, n_samples)
         self.val_metrics = nn.ModuleDict(val_metrics if val_metrics is not None else {})
-        self.save_hyperparameters(ignore="laplace")
+        self.save_hyperparameters(ignore="dropout_hook")
 
 
     def configure_prediction_mode(self, mode: Literal["deterministic", "bayesian"], n_samples: Optional[int] = None) -> None:
@@ -46,17 +46,22 @@ class McDropoutModule(pl.LightningModule):
 
     def forward(self, x):
         # print(f"\n Forwarding with prediction mode {self._pred_mode} and prediction type {self._pred_type} and n_samples {self._n_samples}")
+        original_device = next(self.dropout_hook.model.parameters()).device
+        self.dropout_hook.model.to(self._device)
         if self._pred_mode == "deterministic":
             logits = self.dropout_hook.model(x)
             probs  = nn.functional.softmax(logits, dim=-1)
-            return probs
         elif self._pred_mode == "bayesian":
             self.dropout_hook.enable()
             logits = torch.stack([self.dropout_hook.model(x) for _ in range(self._n_samples)])
             probs = nn.functional.softmax(logits, dim=-1)
             self.dropout_hook.disable()
-            return probs
-    
+        else:
+            raise ValueError(f"Unknown prediction mode {self._pred_mode}")
+        self.dropout_hook.model.to(original_device)
+
+        return probs
+
     def training_step(self, batch, batch_idx):
         raise NotImplementedError("LaplaceModule does not support training_step")
     
