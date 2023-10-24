@@ -34,7 +34,7 @@ def initialize(new_value: torch.Tensor) -> _WelfordAggregate:
 # mean accumulates the mean of the entire dataset
 # M2 aggregates the squared distance from the mean
 # count aggregates the number of samples seen so far
-def update(existing_aggregate: _WelfordAggregate, new_value: torch.Tensor):
+def update(existing_aggregate: _WelfordAggregate, new_value: torch.Tensor) -> _WelfordAggregate:
     (count, mean, M2) = existing_aggregate
     count += 1
     delta = new_value - mean
