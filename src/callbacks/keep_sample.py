@@ -252,7 +252,11 @@ class KeepImagesCallbackContainer:
 
                 color = "green" if callback.gt_labels[j] == pred else "red"
                 axis.set_title(f"{callback.gt_labels[j]:.0f} ; {pred} ; {probs[pred]:.1E} ; {callback.score_values[j].item():.1E}", fontsize=7, pad=0, color=color)
-                axis.imshow(callback.samples[j].permute(1,2,0), cmap="gray")
-                # TODO: adapt for color images
+                if callback.samples[j].shape[0] == 1:
+                    axis.imshow(callback.samples[j].squeeze(0), cmap="gray")
+                elif callback.samples[j].shape[0] == 3:
+                    axis.imshow(callback.samples[j].permute(1,2,0))
+                else:
+                    raise ValueError(f"Unexpected sample shape {callback.samples[j].shape}")
 
         return fig
