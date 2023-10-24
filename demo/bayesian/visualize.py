@@ -29,6 +29,7 @@ import config
 from network.bayesian import laplace as bayesian_laplace, mc_dropout as bayesian_mc_dropout
 from network import lightning as lightning
 from util import utils
+from test import bottleneck
 
 from network.pruning import pruner as pruning_wrapper, util as pruning_util
 from callbacks import keep_sample
@@ -51,7 +52,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='test', required=False)
 
-    parser.add_argument('--bayesian', help='specify which bayesian method to use', type=str, choices=config.mode.AVAILABLE_BAYESIAN_MODES, default='laplace', required=False)
+    parser.add_argument('--bayesian', help='specify which bayesian method to use', type=str, choices=config.mode.AVAILABLE_BAYESIAN_MODES, default='mc_dropout', required=False)
 
     return parser.parse_args()
 
@@ -61,7 +62,7 @@ def main():
 
     model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
     laplace_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian" / "laplace"
-    log_path: Path = laplace_log_path / 'visualisation'
+    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian" / 'visualisation'
     log_foldername: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -112,7 +113,7 @@ def main():
         # Get the dropout hook
         dropout_hook: bayesian_mc_dropout.DropoutHook
         if hasattr(model, "dropout_hook"):
-            dropout_hook = model.dropout_hook
+            dropout_hook = getattr(model, 'dropout_hook')
         else:
             dropout_hook = bayesian_mc_dropout.DropoutHook(model)
 
