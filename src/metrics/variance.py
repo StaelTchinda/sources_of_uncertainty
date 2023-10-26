@@ -6,11 +6,11 @@ import torch.nn.functional as F
 
 
 from .utils.welford import _WelfordAggregate, initialize, update, finalize
-from .float_metric import FloatMetricEstimator
+from .tensor_metric import TensorMetricEstimator
 from util.assertion import assert_contains, assert_equals, assert_le, assert_lt, assert_not_none
 
 
-class VarianceEstimator(FloatMetricEstimator):
+class VarianceEstimator(TensorMetricEstimator):
     _batch_sizes: List[int]  # maps from the batch index to the batch size
     _sampling_size: int
     _existing_aggregates: List[_WelfordAggregate]
@@ -27,7 +27,7 @@ class VarianceEstimator(FloatMetricEstimator):
 
     @classmethod
     # the less, the better
-    def compare_values(cls, value1: float, value2: float) -> float:
+    def compare_values(cls, value1: torch.Tensor, value2: torch.Tensor) -> torch.Tensor:
         return value2 - value1
 
     @classmethod
@@ -42,7 +42,7 @@ class VarianceEstimator(FloatMetricEstimator):
                    sampling_index: Optional[int] = None,
                    batch_index: Optional[int] = None) -> None:
         feed_params: Dict[Text, Any] = locals()
-        FloatMetricEstimator.assert_round_and_batch_index(sampling_index, batch_index)
+        TensorMetricEstimator.assert_round_and_batch_index(sampling_index, batch_index)
         # TODO: rethink this assertion. It hrows an error when trying to compute the variances after each layer
         # assert_contains([1, 2], len(probs.shape), f"Expected shape (C) or (N, C), but got shape {probs.shape}")
 
@@ -93,7 +93,7 @@ class VarianceEstimator(FloatMetricEstimator):
         self.apply_feed_hooks(feed_params)
 
 
-    def get_metric_value(self, intermediate: bool = False) -> float:
+    def get_metric_value(self, intermediate: bool = False) -> torch.Tensor:
         variances_by_sample = self.get_metric_values_per_samples()
         variance = variances_by_sample.mean(dim=0)
         if not intermediate:

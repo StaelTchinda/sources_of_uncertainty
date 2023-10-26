@@ -16,6 +16,7 @@ import torch.distributions as dists
 from netcal import metrics as netcal
 import laplace
 import laplace.utils.matrix
+import matplotlib.pyplot as plt
 
 def add_src_to_path(demo_dir_path: Optional[Path] = None):
     import sys, pathlib
@@ -50,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='vgg11', required=False)
+    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
 
     parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
@@ -60,12 +61,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def histogram_variance(variance: torch.Tensor, title: Optional[Text] = None, channel_wise: bool = True):
+    if len(variance.shape) >=2 and channel_wise:
+        # Reshape the variance to a 2x2 matrix, where the second dimension is the number of channels
+        data = variance.reshape(-1, variance.shape[0])
+        label = [f"channel {i}" for i in range(variance.shape[0])]
+    else:
+        data = variance.flatten()
+        label = None
+    data = data.detach().cpu().numpy()
+
+    fig, ax = plt.subplots()
+
+    # We can set the number of bins with the *bins* keyword argument.
+    if label is not None:
+        ax.hist(data, label=label, stacked=True)
+        ax.legend()
+    else:
+        ax.hist(data)
+
+    if title is not None:
+        ax.set_title(title)
+    return fig
+
+
 def main():
     args: argparse.Namespace = parse_args()
 
     model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
-    mc_dropout_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "mc_dropout"
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "mc_dropout" / "analyse" / "layer"
+    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian" / "analyse" / "layer"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -132,27 +156,16 @@ def main():
     if args.verbose:
         print("Finished validation")
 
-        print(f"Variances per layer")
-        for module, variance in variance_callback.named_variances().items():
-            print(f"{module} : {variance}")
-
     if isinstance(mc_dropout_trainer.logger, pl_tensorboard.TensorBoardLogger):
         for module_name, variance in variance_callback.named_variances().items():
-            try:
-                mc_dropout_trainer.logger.experiment.add_histogram(f"mc_dropout_layer/{module_name}", variance.detach().cpu().numpy(), 0)
-            except TypeError as e:
-                from util.log.histogram import histogram_vector
-                mc_dropout_trainer.logger.experiment.add_figure(f"mc_dropout_layer/{module_name}", histogram_vector(variance.flatten().detach().cpu().numpy()))
+            # IDEA: use the native function of tensorboard to log the histogram: SummaryWriter.add_histogram
+            mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/{module_name}", histogram_variance(variance, title=module_name, channel_wise=False))
+            mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/channel/{module_name}", histogram_variance(variance, title=module_name, channel_wise=True))
 
-                mc_dropout_trainer.logger.experiment.add_text("error", f"Could not log variances: {e}")
-                warnings.warn(f"Could not log variances: {e}")
     else:
         warnings.warn("No TensorBoardLogger found, variances cannot be logged")
 
-
-
+utils.register_cleanup()
 
 if __name__ == '__main__':
-    main()
-        
-
+    utils.catch_and_print(main)

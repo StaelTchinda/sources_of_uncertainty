@@ -34,10 +34,10 @@ class SaveLayerVarianceCallback(pl.Callback):
         self._module_names: Dict[nn.Module, str] = {}
 
 
-    def module_variances(self) -> Dict[nn.Module, float]:
+    def module_variances(self) -> Dict[nn.Module, torch.Tensor]:
         return {module: metric.get_metric_value() for (module, metric) in self._variances.items()}
     
-    def named_variances(self) -> Dict[str, float]:
+    def named_variances(self) -> Dict[str, torch.Tensor]:
         return {self._module_names[module]: metric.get_metric_value() for (module, metric) in self._variances.items()}
 
     def on_validation_start(self, trainer, pl_module):

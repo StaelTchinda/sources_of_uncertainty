@@ -10,7 +10,7 @@ from metrics.abstract_metric import AbstractMetricEstimator
 from util.assertion import assert_contains_all, assert_lt, assert_not_none, assert_equals, assert_contains, assert_tensor_same_shape
 
 
-class FloatMetricEstimator(AbstractMetricEstimator[float]):
+class TensorMetricEstimator(AbstractMetricEstimator[torch.Tensor]):
     _get_per_samples_hooks: Dict[int, Callable]
     
     def __init__(self):
@@ -21,7 +21,7 @@ class FloatMetricEstimator(AbstractMetricEstimator[float]):
     def get_metric_values_per_samples(self) -> torch.Tensor:
         pass
 
-    def register_get_per_samples_hook(self, hook: Callable[[FloatMetricEstimator, torch.Tensor], Optional[torch.Tensor]], prepend: bool = False) -> hooks.RemovableHandle:
+    def register_get_per_samples_hook(self, hook: Callable[[TensorMetricEstimator, torch.Tensor], Optional[torch.Tensor]], prepend: bool = False) -> hooks.RemovableHandle:
         handle = hooks.RemovableHandle(
             self._get_per_samples_hooks
         )

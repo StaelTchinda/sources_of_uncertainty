@@ -49,8 +49,11 @@ class McDropoutModule(pl.LightningModule):
         original_device = next(self.dropout_hook.model.parameters()).device
         self.dropout_hook.model.to(self._device)
         if self._pred_mode == "deterministic":
+            original_state = self.dropout_hook.enable_dropout
+            self.dropout_hook.disable()
             logits = self.dropout_hook.model(x)
             probs  = nn.functional.softmax(logits, dim=-1)
+            self.dropout_hook.enable_or_disable(original_state)
         elif self._pred_mode == "bayesian":
             self.dropout_hook.enable()
             logits = torch.stack([self.dropout_hook.model(x) for _ in range(self._n_samples)])
@@ -67,24 +70,12 @@ class McDropoutModule(pl.LightningModule):
     
     
     def validation_step(self, batch, batch_idx):
-        # Define the validation step logic here
-        inputs, labels = batch
-        outputs = self(inputs)
-
-        for metric_name in self.val_metrics.keys():
-            if self._pred_mode == "bayesian":
-                if hasattr(self.val_metrics[metric_name], "is_ensemble_metric") and self.val_metrics[metric_name].is_ensemble_metric:
-                    preds = outputs
-                else:
-                    preds = outputs.mean(dim=0)
-            else:
-                preds = outputs
-            self.val_metrics[metric_name](preds, labels)
-
-        return outputs
+        return self._eval_step(batch, batch_idx)
 
     def test_step(self, batch, batch_idx):
-        # Define the validation step logic here
+        return self._eval_step(batch, batch_idx)
+
+    def _eval_step(self, batch, batch_idx):
         inputs, labels = batch
         outputs = self(inputs)
 
@@ -104,3 +95,8 @@ class McDropoutModule(pl.LightningModule):
         for metric_name in self.val_metrics.keys():
             self.log(f'val/{metric_name}', self.val_metrics[metric_name])
         return super().on_validation_epoch_end()
+    
+    def on_test_epoch_end(self) -> None:
+        for metric_name in self.val_metrics.keys():
+            self.log(f'test/{metric_name}', self.val_metrics[metric_name])
+        return super().on_test_epoch_end()

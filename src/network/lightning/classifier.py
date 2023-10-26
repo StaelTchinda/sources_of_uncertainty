@@ -63,20 +63,34 @@ class LightningClassifier(pl.LightningModule):
         
     
     def validation_step(self, batch, batch_idx):
+        loss = self._eval_step(batch, batch_idx)
+        self.log('val/loss', loss, sync_dist=True)
+        return loss
+
+    def test_step(self, batch, batch_idx):
+        return self._eval_step(batch, batch_idx)
+
+    def _eval_step(self, batch, batch_idx):
         # Define the validation step logic here
         inputs, labels = batch[0], batch[1]
         probs = self(inputs)
         loss = self.loss_function(probs, labels)
-        # print(f"LightningModule validation_step probs: {probs}, \n preds: {probs.argmax(dim=1)}")
-        self.log('val/loss', loss, sync_dist=True)
+        # if probs.numel() < 1000:
+        #     print(f"LightningModule validation_step probs: {probs}, \n preds: {probs.argmax(-1)}, \n targets: {labels}")
         for metric_name in self.val_metrics.keys():
             self.val_metrics[metric_name](probs, labels)
         return loss
+
 
     def on_validation_epoch_end(self) -> None:
         for metric_name in self.val_metrics.keys():
             self.log(f'val/{metric_name}', self.val_metrics[metric_name])
         super().on_validation_epoch_end()
+
+    def on_test_epoch_end(self) -> None:
+        for metric_name in self.val_metrics.keys():
+            self.log(f'test/{metric_name}', self.val_metrics[metric_name])
+        super().on_test_epoch_end()
 
     def configure_optimizers(self):
         # Define your optimizer configuration here
