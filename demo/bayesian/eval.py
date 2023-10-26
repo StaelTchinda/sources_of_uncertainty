@@ -138,10 +138,10 @@ def main():
     model.eval()
     if args.stage == 'val':
         bayesian_trainer.validate(bayesian_module, data_module)
-        utils.evaluate_model(nn.Sequential(model, nn.Softmax(dim=-1)), data_module.val_dataloader(), 'MAP')
+        # utils.evaluate_model(nn.Sequential(model, nn.Softmax(dim=-1)), data_module.val_dataloader(), 'MAP')
     elif args.stage == 'test':
         bayesian_trainer.test(bayesian_module, data_module)
-        utils.evaluate_model(bayesian_module, data_module.test_dataloader(), 'MAP')
+        # utils.evaluate_model(bayesian_module, data_module.test_dataloader(), 'MAP')
     else:
         raise ValueError(f"Invalid stage {args.stage}")
 
