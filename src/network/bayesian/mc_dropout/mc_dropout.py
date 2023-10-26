@@ -61,7 +61,11 @@ class DropoutHook:
         self.hooks = []
         self.enable_dropout = True
 
+        all_submodules = model.modules()
         for (submodule, _) in self.submodule_to_dropouts.items():
+            # If a dropout layer already belongs to the model, it should not be registered as a hook, otherwise it will forward twice.
+            if submodule in all_submodules:
+                continue
             self.hooks.append(submodule.register_forward_hook(self.forward_hook))
 
     def forward_hook(self, module: nn.Module, args: Dict, output: torch.Tensor) -> torch.Tensor:

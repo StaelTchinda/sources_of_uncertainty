@@ -1,4 +1,4 @@
-from typing import Any, Dict, Literal, Text, Union, Optional
+from typing import Any, Dict, Literal, Text, Union, Optional, Callable
 import logging
 import os
 
@@ -111,6 +111,21 @@ def make_deterministic(seed: int = 7777):
     torch.use_deterministic_algorithms(True, warn_only=True)
 
 
+def catch_and_print(func: Callable[[], Any]) -> Any:
+    try:
+        return func()
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()   
+
+# In case of very slow code, to safely check for bottlenecks in limited time
+# from test import bottleneck
+# output_path=f"analyse_layer_bottleneck_{datetime.now().strftime('%Y-%m-%d %H-%M-%S')}.txt"
+# bottleneck.profile_and_stats(lambda: utils.catch_and_print(lambda: utils.run_with_timeout(main, timeout=40*60)), output_path=output_path)
+    
 import signal
 
 class TimeoutException(Exception):
