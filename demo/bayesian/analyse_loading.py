@@ -25,7 +25,7 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 
 add_src_to_path()
 
-from util.log.eigenvalue import log_laplace_eigenvalues
+from util.log.eigenvalue import log_laplace_loadings
 from util import assertion, checkpoint, verification, data as data_utils
 from util import lightning as lightning_util, plot as plot_util
 import config
@@ -58,13 +58,28 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def calculate_loadings(principal_components: torch.Tensor, eigenvalues: torch.Tensor) -> List[torch.Tensor]:
+    assertion.assert_equals(2, len(principal_components.shape))
+    assertion.assert_equals(1, len(eigenvalues.shape))
+    assertion.assert_equals(principal_components.size(0), eigenvalues.size(0))
+
+    num_features = principal_components.shape[0]
+    num_components = principal_components.shape[1]
+    loadings = torch.zeros(num_features, num_components)
+
+    for i in range(num_components):
+        loading = principal_components[:, i] * torch.sqrt(eigenvalues[i])
+        loadings[:, i] = loading
+
+    return loadings
+
 def main():
     args: argparse.Namespace = parse_args()
 
     model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
     bayesian_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian"
     laplace_checkpoints_path: Path = bayesian_checkpoints_path /  "laplace"
-    log_path: Path = bayesian_checkpoints_path / "analyse" / "eig"
+    log_path: Path = bayesian_checkpoints_path / "analyse" / "loading"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -81,12 +96,24 @@ def main():
     data_module = config.data.lightning.get_default_datamodule(data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
+    # Initialize the model
+    model = config.network.get_default_model(model_mode)
+    utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
+    pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
+
+    # Load the best checkpoint
+    best_checkpoint_path = checkpoint.find_best_checkpoint(model_checkpoints_path)
+    if best_checkpoint_path is not None:
+        pl_module = pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
+        pl_module.eval()
+    else:
+        raise ValueError(f"No checkpoint found at {model_checkpoints_path}")
+
     # Load the LaPlace approximation
     laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
     laplace_curv: laplace.ParametricLaplace = None
     if args.checkpoint is True:
         laplace_curv = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_checkpoints_path}, library='dill')
-        utils.verbose_and_log(f"LaPlace approximation loaded from {laplace_filename}", args.verbose, args.log)
     if laplace_curv is None:
         raise ValueError("No LaPlace approximation found")
 
@@ -94,16 +121,18 @@ def main():
     laplace_pl_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
     laplace_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path})
 
-    # Observe the eigenvalues of the Hessian
-    utils.verbose_and_log(f"Observe the eigenvalues of the Hessian", args.verbose, args.log)
-    log_laplace_eigenvalues(laplace_curv, laplace_trainer.logger)
+
+    # Observe the loadings from PCA applied on the hessian
+    log_laplace_loadings(laplace_curv, laplace_trainer.logger, params=[ 
+        # ('weight', None), 
+        # ('layer', None),
+        ('layer_channel', 'min'),
+        ('layer_channel', 'max'),
+    ])
     
 # Register the cleanup function to be called on exit
 utils.register_cleanup()
 
-
-# Since the eigenvalues of the hessian are already sorted, a heatmap is not very valuable, because it will always be from lowest to highest (from left to right). A histogram would make more sense to analyse how much distributed the eigenvalues are. Labeling after layers or even channels is not possible.
-# This is however possible for the PCA loadings, as they are linked to the original weights. 
-
 if __name__ == '__main__':
     utils.catch_and_print(main)
+

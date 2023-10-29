@@ -4,12 +4,14 @@ import laplace.utils.matrix
 
 from typing import Callable
 
-from util import assertion
+from util import assertion, verification
 from network import lightning as lightning
 
+# TODO: Remove unused granularities
 NetworkGranularity = Literal['weight', 'channel', 'layer_channel', 'layer']
-ReduceMode = Literal['max', 'min', 'mean',  'median', 'sum']
+ReduceMode = Literal['max', 'min', 'mean']
 
+# TODO: clean unused functions
 def get_reduce_fn(reduce_mode: ReduceMode) -> Callable[[torch.Tensor], torch.Tensor]:
     if reduce_mode == 'max':
         reduce_fn = torch.max
@@ -49,17 +51,18 @@ def reduce_loadings_per_layer_channel(weight_loadings: torch.Tensor, model_decom
     reduce_fn = get_reduce_fn(reduce_mode)
 
     n_params = sum(sum(l) for l in model_decomposition.values())
-    assertion.assert_equals(n_params, weight_loadings.numel())
+    # assertion.assert_equals(n_params^2, weight_loadings.numel()) # TODO: check this
+    verification.check_equals(2, weight_loadings.ndim)
 
     channel_loadings = {}
     last_eigval_idx = 0
     for (param_name, n_params_per_channel) in model_decomposition.items():
-        channel_loadings[param_name] = torch.zeros((len(n_params_per_channel)))
+        channel_loadings[param_name] = torch.zeros((len(n_params_per_channel), weight_loadings.size(1)))
     
         channel_idx = 0
         for n_channel_params in n_params_per_channel:
             param_eigenvalues = weight_loadings[last_eigval_idx:last_eigval_idx+n_channel_params]
-            channel_loadings[param_name][channel_idx] = reduce_fn(param_eigenvalues)
+            channel_loadings[param_name][channel_idx] = reduce_fn(param_eigenvalues, dim=0)[0] # [0] to extract the tensor from the tuple (tensor, indices)
 
             channel_idx += 1
             last_eigval_idx += n_channel_params

@@ -1,1 +1,1 @@
-from util.log import eigenvalue, histogram
+from util.log import eigenvalue

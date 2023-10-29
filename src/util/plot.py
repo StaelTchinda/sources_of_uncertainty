@@ -1,5 +1,5 @@
 
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Optional
 from matplotlib import pyplot as plt
 import numpy as np
 import torch
@@ -9,7 +9,7 @@ import numpy as np
 
 
 # From https://matplotlib.org/stable/gallery/images_contours_and_fields/image_annotated_heatmap.html#sphx-glr-gallery-images-contours-and-fields-image-annotated-heatmap-py
-def heatmap(data, row_labels: Union[List[str], Dict[int, str]], col_labels: Union[List[str], Dict[int, str]], ax=None,
+def heatmap(data, row_labels: Optional[Union[List[str], Dict[int, str]]] = None, col_labels: Optional[Union[List[str], Dict[int, str]]] = None, ax=None,
             cbar_kw=None, cbarlabel="", **kwargs):
     """
     Create a heatmap from a numpy array and two lists of labels.
@@ -43,6 +43,7 @@ def heatmap(data, row_labels: Union[List[str], Dict[int, str]], col_labels: Unio
     kwargs = {**default_kwargs, **kwargs}
 
     # Plot the heatmap
+    # print(f"Plotting heatmap of size {data.shape} with kwargs: {kwargs}")
     im = ax.imshow(data, **kwargs)
 
     # Create colorbar
@@ -50,14 +51,16 @@ def heatmap(data, row_labels: Union[List[str], Dict[int, str]], col_labels: Unio
     cbar.ax.set_ylabel(cbarlabel, rotation=-90, va="bottom")
 
     # Show all ticks and label them with the respective list entries.
-    if isinstance(row_labels, dict):
-        ax.set_yticks(list(row_labels.keys()), labels=list(row_labels.values()))
-    else:
-        ax.set_yticks(np.arange(data.shape[0]), labels=row_labels)
-    if isinstance(col_labels, dict):
-        ax.set_xticks(list(col_labels.keys()), labels=list(col_labels.values()))
-    else:
-        ax.set_xticks(np.arange(data.shape[1]), labels=col_labels)
+    if row_labels is not None:
+        if isinstance(row_labels, dict):
+            ax.set_yticks(list(row_labels.keys()), labels=list(row_labels.values()))
+        else:
+            ax.set_yticks(np.arange(data.shape[0]), labels=row_labels)
+    if col_labels is not None:
+        if isinstance(col_labels, dict):
+            ax.set_xticks(list(col_labels.keys()), labels=list(col_labels.values()))
+        else:
+            ax.set_xticks(np.arange(data.shape[1]), labels=col_labels)
     
     # Let the horizontal axes labeling appear on top.
     ax.tick_params(top=True, bottom=False,

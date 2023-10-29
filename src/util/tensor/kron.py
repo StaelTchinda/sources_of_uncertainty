@@ -44,10 +44,9 @@ def kron_min(kron1: torch.Tensor, kron2: torch.Tensor) -> float:
     kron1_positive_max = torch.max(kron1[kron1 > 0])
     kron2_positive_max = torch.max(kron2[kron2 > 0])
     # If one minimum is positive, then the minimum of the kronecker product is the product of the two minimums
-    if kron1_min.item()>0 or kron2_min.item()>0:
+    if kron1_min.item()>0 and kron2_min.item()>0:
         return kron1_min.item() * kron2_min.item()
     else:
-
         return torch.min(
             kron1_min * kron2_positive_max,
             kron1_positive_max * kron2_min
