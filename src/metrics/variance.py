@@ -11,15 +11,19 @@ from util.assertion import assert_contains, assert_equals, assert_le, assert_lt,
 
 
 class VarianceEstimator(TensorMetricEstimator):
-    _batch_sizes: List[int]  # maps from the batch index to the batch size
+    # _batch_sizes: List[int]  # maps from the batch index to the batch size
     _sampling_size: int
     _existing_aggregates: List[_WelfordAggregate]
-    _probs_expected_shapes: List[torch.Size]  # maps from the batch index to the expected size of the probs
+    # _probs_expected_shapes: List[torch.Size]  # maps from the batch index to the expected size of the probs
     _metric_computed: bool
 
-    def __init__(self, warn_mode: bool = True):
+    def __init__(self, warn_mode: bool = True, device: Optional[Union[torch.device, Text]] = None):
         self.reset()
         self.warn_mode: bool = warn_mode
+        if device is not None:
+            self.device: torch.device = device if isinstance(device, torch.device) else torch.device(device)
+        else:
+            self.device = None
         super().__init__()
 
     def sampling_size(self) -> int:
@@ -41,7 +45,7 @@ class VarianceEstimator(TensorMetricEstimator):
                    samples: Optional[torch.Tensor] = None,
                    sampling_index: Optional[int] = None,
                    batch_index: Optional[int] = None) -> None:
-        feed_params: Dict[Text, Any] = locals()
+        # feed_params: Dict[Text, Any] = locals()
         TensorMetricEstimator.assert_round_and_batch_index(sampling_index, batch_index)
         # TODO: rethink this assertion. It hrows an error when trying to compute the variances after each layer
         # assert_contains([1, 2], len(probs.shape), f"Expected shape (C) or (N, C), but got shape {probs.shape}")
@@ -50,21 +54,24 @@ class VarianceEstimator(TensorMetricEstimator):
             warnings.warn(f"Probs were fed after the metric value has been computed")
 
         # Check and update the expected shape of probs
-        if sampling_index is None:
-            if self._sampling_size == 0:
-                assert_equals(0, len(self._probs_expected_shapes))
-                self._probs_expected_shapes.append(probs.shape)
-            else:
-                assert_equals(1, len(self._probs_expected_shapes))
-                assert_equals(self._probs_expected_shapes[0], probs.shape)
-        else:
-            if sampling_index == 0:
-                # The batch index should correspond to the next one to be updated
-                assert_equals(len(self._probs_expected_shapes), batch_index)
-                self._probs_expected_shapes.append(probs.shape)
-            else:
-                assert_lt(batch_index, len(self._probs_expected_shapes))
-                assert_equals(self._probs_expected_shapes[batch_index], probs.shape)
+        # if sampling_index is None:
+        #     if self._sampling_size == 0:
+        #         assert_equals(0, len(self._probs_expected_shapes))
+        #         self._probs_expected_shapes.append(probs.shape)
+        #     else:
+        #         assert_equals(1, len(self._probs_expected_shapes))
+        #         assert_equals(self._probs_expected_shapes[0], probs.shape)
+        # else:
+        #     if sampling_index == 0:
+        #         # The batch index should correspond to the next one to be updated
+        #         assert_equals(len(self._probs_expected_shapes), batch_index)
+        #         self._probs_expected_shapes.append(probs.shape)
+        #     else:
+        #         assert_lt(batch_index, len(self._probs_expected_shapes))
+        #         assert_equals(self._probs_expected_shapes[batch_index], probs.shape)
+
+        if self.device is not None:
+            probs = probs.to(self.device)
 
         if sampling_index is None:
             if self._sampling_size == 0:
@@ -74,14 +81,14 @@ class VarianceEstimator(TensorMetricEstimator):
         else:
             assert_not_none(batch_index)
             if sampling_index == 0:
-                assert_equals(batch_index, len(self._batch_sizes))
+                # assert_equals(batch_index, len(self._batch_sizes))
                 assert_equals(batch_index, len(self._existing_aggregates))
-                self._batch_sizes.append(probs.size(0))
+                # self._batch_sizes.append(probs.size(0))
 
-                self._existing_aggregates.append(initialize(probs))
+                self._existing_aggregates.append(initialize(probs.to(self.device)))
             else:
-                assert_lt(batch_index, len(self._batch_sizes))
-                assert_equals(self._batch_sizes[batch_index], probs.size(0))
+                # assert_lt(batch_index, len(self._batch_sizes))
+                # assert_equals(self._batch_sizes[batch_index], probs.size(0))
 
                 self._existing_aggregates[batch_index] = update(self._existing_aggregates[batch_index], probs)
 
@@ -90,7 +97,7 @@ class VarianceEstimator(TensorMetricEstimator):
         else:
             if batch_index == 0:
                 self._sampling_size += 1
-        self.apply_feed_hooks(feed_params)
+        # self.apply_feed_hooks(feed_params)
 
 
     def get_metric_value(self, intermediate: bool = False) -> torch.Tensor:
@@ -113,10 +120,10 @@ class VarianceEstimator(TensorMetricEstimator):
         return variances_by_sample
     
     def reset(self) -> None:
-        self._batch_sizes = []
+        # self._batch_sizes = []
         self._sampling_size = 0
         self._existing_aggregates = []
-        self._probs_expected_shapes = []
+        # self._probs_expected_shapes = []
         self._metric_computed = False
 
 

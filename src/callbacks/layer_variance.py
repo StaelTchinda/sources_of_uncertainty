@@ -3,7 +3,7 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Text, Union
+from typing import Any, Dict, Iterable, List, Literal, Optional, Text, Tuple, Union
 import logging
 import lightning.pytorch as pl
 import pytorch_lightning as pl
@@ -34,11 +34,15 @@ class SaveLayerVarianceCallback(pl.Callback):
         self._module_names: Dict[nn.Module, str] = {}
 
 
-    def module_variances(self) -> Dict[nn.Module, torch.Tensor]:
-        return {module: metric.get_metric_value() for (module, metric) in self._variances.items()}
+    def module_variances(self) -> Iterable[Tuple[nn.Module, torch.Tensor]]:
+        for (module, metric) in self._variances.items():
+            yield (module, metric.get_metric_value())
+        # return {module: metric.get_metric_value() for (module, metric) in self._variances.items()}
     
-    def named_variances(self) -> Dict[str, torch.Tensor]:
-        return {self._module_names[module]: metric.get_metric_value() for (module, metric) in self._variances.items()}
+    def named_variances(self) -> Iterable[Tuple[str, torch.Tensor]]:
+        for (module, metric) in self._variances.items():
+            yield (self._module_names[module], metric.get_metric_value())
+        # return {self._module_names[module]: metric.get_metric_value() for (module, metric) in self._variances.items()}
 
     def on_validation_start(self, trainer, pl_module):
         # TODO: Check this line does not have any impact and delete it

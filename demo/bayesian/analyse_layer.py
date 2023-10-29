@@ -51,8 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
+    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='vgg13', required=False)
 
     parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
@@ -64,21 +64,21 @@ def parse_args() -> argparse.Namespace:
 def histogram_variance(variance: torch.Tensor, title: Optional[Text] = None, channel_wise: bool = True):
     if len(variance.shape) >=2 and channel_wise:
         # Reshape the variance to a 2x2 matrix, where the second dimension is the number of channels
-        data = variance.reshape(-1, variance.shape[0])
+        variance = variance.reshape(-1, variance.shape[0])
         label = [f"channel {i}" for i in range(variance.shape[0])]
     else:
-        data = variance.flatten()
+        variance = variance.flatten()
         label = None
-    data = data.detach().cpu().numpy()
+    variance = variance.detach().cpu().numpy()
 
     fig, ax = plt.subplots()
 
     # We can set the number of bins with the *bins* keyword argument.
     if label is not None:
-        ax.hist(data, label=label, stacked=True)
+        ax.hist(variance, label=label, stacked=True)
         ax.legend()
     else:
-        ax.hist(data)
+        ax.hist(variance)
 
     if title is not None:
         ax.set_title(title)
@@ -153,15 +153,14 @@ def main():
     )
 
     mc_dropout_trainer.validate(mc_dropout_pl_module, data_module)
-    if args.verbose:
-        print("Finished validation")
+    utils.verbose_and_log(f"Finished validation", args.verbose, args.log)
 
     if isinstance(mc_dropout_trainer.logger, pl_tensorboard.TensorBoardLogger):
-        for module_name, variance in variance_callback.named_variances().items():
+        for module_name, variance in variance_callback.named_variances():
+            utils.verbose_and_log(f"Logging variance of module {module_name}", args.verbose, args.log)
             # IDEA: use the native function of tensorboard to log the histogram: SummaryWriter.add_histogram
             mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/{module_name}", histogram_variance(variance, title=module_name, channel_wise=False))
             mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/channel/{module_name}", histogram_variance(variance, title=module_name, channel_wise=True))
-
     else:
         warnings.warn("No TensorBoardLogger found, variances cannot be logged")
 
