@@ -6,11 +6,8 @@ import torch.nn.functional as F
 
 
 from .utils.welford import _WelfordAggregate, initialize, update, finalize
-from .tensor_metric import TensorMetricEstimator
-from util.assertion import assert_contains, assert_equals, assert_le, assert_lt, assert_not_none
-from util import verification
+from util import verification, assertion
 
-# TODO: delete class TensorMetricEstimator if not used anywhere else
 class VarianceEstimator:
     _dataset_size: int
     _existing_aggregates: List[Optional[_WelfordAggregate]]
@@ -36,7 +33,7 @@ class VarianceEstimator:
             self.device = probs.device
 
         if sampling_index == 0:
-            assert_equals(batch_index, len(self._existing_aggregates))
+            assertion.assert_equals(batch_index, len(self._existing_aggregates))
 
             self._existing_aggregates.append(initialize(probs.to(self.device)))
         else:
