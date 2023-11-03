@@ -26,13 +26,13 @@ import metrics
 import config
 
 class SaveLayerVarianceCallback(pl.Callback):
-    def __init__(self, stage: Literal['train', 'val', 'test'] = 'val'):
+    def __init__(self, stage: Literal['train', 'val', 'test'] = 'val', sampling_size: Optional[int] = None):
         self.stage = stage
         self._sampling_index: Dict[nn.Module, int] = {}
         self._batch_index: Dict[nn.Module, int] = {}
         self._variances: Dict[nn.Module, metrics.VarianceEstimator] = {}
         self._module_names: Dict[nn.Module, str] = {}
-
+        self.expected_sampling_size = sampling_size
 
     def module_variances(self) -> Iterable[Tuple[nn.Module, torch.Tensor]]:
         for (module, metric) in self._variances.items():
@@ -66,6 +66,13 @@ class SaveLayerVarianceCallback(pl.Callback):
             self.globally_set_sampling_index(0)
         return super().on_validation_batch_start(trainer, pl_module, batch, batch_idx, dataloader_idx)
 
+    def on_validation_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+        if self.stage == 'val':
+            for (module, variance_metric) in self._variances.items():
+                if self.expected_sampling_size is not None and self._sampling_index[module] == self.expected_sampling_size:
+                    variance_metric.finalize_batch(batch_idx)
+        return super().on_validation_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+
     def register_submodules(self, module: nn.Module):
         for (sub_module_name, sub_module) in module.named_modules():
             if not hasattr(sub_module, 'weight'):
@@ -86,7 +93,7 @@ class SaveLayerVarianceCallback(pl.Callback):
         #     self._sampling_index[module] = 0
         # if module not in self._batch_index:
         #     self._batch_index[module] = 0
-        self._variances[module].feed_probs(output, gt_labels=None, samples=None,
+        self._variances[module].feed_probs(output,
                                            sampling_index=self._sampling_index[module], 
                                            batch_index=self._batch_index[module])
         self.increase_sampling_index(module)
@@ -112,6 +119,7 @@ class SaveLayerVarianceCallback(pl.Callback):
 
     def set_sampling_index(self, module: nn.Module, sampling_index: int):
         self._sampling_index[module] = sampling_index
+        self._check_sampling_index(module)
 
     def globally_set_sampling_index(self, sampling_index: int):
         for module in self._sampling_index.keys():
@@ -119,6 +127,12 @@ class SaveLayerVarianceCallback(pl.Callback):
     
     def increase_sampling_index(self, module: nn.Module):
         self._sampling_index[module] += 1
+        self._check_sampling_index(module)
+
+    def _check_sampling_index(self, module: nn.Module):
+        if self.expected_sampling_size is not None:
+            if self._sampling_index[module] > self.expected_sampling_size:
+                warnings.warn(f"Sampling index for module {module} is greater than the expected sampling size {self.expected_sampling_size}. Resetting sampling index to 0")
 
     def globally_increase_sampling_index(self):
         for module in self._sampling_index.keys():

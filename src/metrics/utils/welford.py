@@ -1,9 +1,9 @@
 from typing import List, Iterable, Optional, Union, Tuple, Text
+import warnings
 
 import torch
 
-from util.assertion import assert_tensor_close
-
+from util import assertion
 # Inspired from https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
 
 
@@ -26,7 +26,7 @@ def welford_algorithm(elements: Iterable[torch.Tensor], expected_shape: Optional
     return finalize(existing_aggregate)
 
 def initialize(new_value: torch.Tensor) -> _WelfordAggregate:
-    existing_aggregate:_WelfordAggregate = (0, torch.zeros_like(new_value), torch.zeros_like(new_value))
+    existing_aggregate:_WelfordAggregate = (0, torch.zeros_like(new_value, device=new_value.device), torch.zeros_like(new_value, device=new_value.device))
     existing_aggregate = update(existing_aggregate, new_value)
     return existing_aggregate
 
@@ -35,12 +35,40 @@ def initialize(new_value: torch.Tensor) -> _WelfordAggregate:
 # M2 aggregates the squared distance from the mean
 # count aggregates the number of samples seen so far
 def update(existing_aggregate: _WelfordAggregate, new_value: torch.Tensor) -> _WelfordAggregate:
+    # (count, mean, M2) = existing_aggregate
+    # count += 1
+    # delta = new_value - mean
+    # mean += delta / count
+    # delta2 = new_value - mean
+    # M2 += delta * delta2
+    # Sanity check: the operation should not consume more memory than the original tensors
+    original_cuda_memory = torch.cuda.memory_allocated()
+    try:
+        result = _update(existing_aggregate, new_value)
+        updated_cuda_memory = torch.cuda.memory_allocated()
+        message = f"Memory consumption with aggregate of shape {result[1].shape} at count {result[0]} increased from {original_cuda_memory / 1024 / 1024 / 1024}GB to {updated_cuda_memory / 1024 / 1024 / 1024}GB"
+        if abs(updated_cuda_memory - original_cuda_memory) > 1024:
+            warnings.warn(message)        
+            assertion.assert_le(abs(original_cuda_memory-updated_cuda_memory), 1024, message)
+        return result
+    except torch.cuda.OutOfMemoryError as e:
+        print(f"Out of memory error when computing variance. The allocated memory before the operation was {original_cuda_memory / 1024 / 1024 / 1024}GB. The error was {e}")
+        raise e
+        existing_aggregate = (existing_aggregate[0], existing_aggregate[1].cpu(), existing_aggregate[2].cpu())
+        new_value = new_value.cpu()
+        new_existing_aggregate = _update(existing_aggregate, new_value)
+        new_existing_aggregate = (new_existing_aggregate[0], new_existing_aggregate[1].cuda(), new_existing_aggregate[2].cuda())
+        return new_existing_aggregate
+
+
+# TODO: delete this function
+def _update(existing_aggregate: _WelfordAggregate, new_value: torch.Tensor) -> _WelfordAggregate:    
     (count, mean, M2) = existing_aggregate
     count += 1
     delta = new_value - mean
-    mean += delta / count
+    mean.add_(delta / count)
     delta2 = new_value - mean
-    M2 += delta * delta2
+    M2.add_(delta * delta2)
     return (count, mean, M2)
 
 # Retrieve the mean, biased variance and unbiased variance from an aggregate
@@ -67,8 +95,8 @@ def test():
 
     welford_mean, welford_biased_var, welford_unbiased_var = result
 
-    assert_tensor_close(torch_mean, welford_mean)
-    assert_tensor_close(torch_var, welford_unbiased_var)
+    assertion.assert_tensor_close(torch_mean, welford_mean)
+    assertion.assert_tensor_close(torch_var, welford_unbiased_var)
 
 
 if __name__ == "__main__":

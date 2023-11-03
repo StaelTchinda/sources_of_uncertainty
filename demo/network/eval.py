@@ -6,9 +6,12 @@ from typing import Optional, Text
 import logging
 import pytorch_lightning as pl
 import torch
+from torch import nn
 from torch.utils import data as torch_data
 import torch.distributions as dists
 from netcal import metrics as netcal
+
+import util
 
 def add_src_to_path(demo_dir_path: Optional[Path] = None):
     import sys, pathlib
@@ -21,9 +24,10 @@ def add_src_to_path(demo_dir_path: Optional[Path] = None):
 
 add_src_to_path()
 
-from util import config, checkpoint
-from util import lightning as lightning_util
-from config.bayesian.laplace import get_default_laplace_params
+from util import assertion, checkpoint
+from util import lightning as lightning_util, data as data_utils
+import config
+from config import network as network_config, data as data_config, mode as mode_config, log as log_config, path as path_config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
@@ -41,15 +45,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='iris', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='fc', required=False)
+    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
+
+    parser.add_argument('--joint_data', help='specify which joint dataset to use', type=str, choices=config.mode.AVAILABLE_JOINT_DATASETS, default=None, required=False)
+
+    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
 
     return parser.parse_args()
 
 def main():
     args: argparse.Namespace = parse_args()
 
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
+    model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
+    if args.joint_data is None:
+        log_path: Path = model_checkpoints_path / "eval"
+    else:
+        log_path: Path = config.path.CHECKPOINT_PATH / f"{args.joint_data}" / f"{args.model}" / "model" / "eval"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -60,50 +72,60 @@ def main():
         logging.disable(logging.CRITICAL)
 
     data_mode: config.mode.DataMode = args.data
+    joint_data_mode: Optional[config.mode.JointDataMode] = args.joint_data
     model_mode: config.mode.ModelMode = args.model
 
     # Initialize the dataloaders
-    train_dataloader, val_dataloader, test_dataloader = config.dataset.get_default_dataloaders(data_mode)
-    utils.verbose_and_log(f"Datasets initialized: \n{data_utils.verbose_dataloaders(train_dataloader, val_dataloader, test_dataloader)}", args.verbose, args.log)
+    if joint_data_mode is None:
+        data_module = data_config.lightning.get_default_datamodule(data_mode)
+    else:
+        data_module = data_config.lightning.get_default_joint_datamodule(joint_data_mode)
+    utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
-    # Initialize the model
-    model = config.network.get_default_model(model_mode)
-    utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
-
-    pl_module: pl.LightningModule = config.lightning.get_default_lightning_module(model_mode, model)
-
-    best_checkpoint_path = checkpoint.find_best_checkpoint(log_path)
-    if best_checkpoint_path is not None:
-        pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
+    # Load the best checkpoint
+    best_checkpoint_model, best_checkpoint_path = config.network.checkpoint.get_best_checkpoint(model_mode, model_checkpoints_path, with_path=True)
+    if best_checkpoint_model is not None:
+        utils.verbose_and_log(f"Loaded best checkpoint model from {best_checkpoint_path}", args.verbose, args.log)
+        pl_module = best_checkpoint_model
         pl_module.eval()
+    else:
+        pretrained_model, pretrained_path = config.network.checkpoint.get_pretrained(model_mode, model_checkpoints_path, with_path=True)
+        if pretrained_model is not None:
+            utils.verbose_and_log(f"Loaded pretrained model from {pretrained_path}", args.verbose, args.log)
+            pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, pretrained_model)
+            pl_module.eval()
+        else:   
+            raise ValueError("No checkpoint or pretrained model found")
+                
+    utils.verbose_and_log(f"Model created: {pl_module}", args.verbose, args.log)
 
-    # Eventually train the model
-    trainer = config.lightning.get_default_lightning_trainer(model_mode, {"default_root_dir": log_path})
-    if best_checkpoint_path is None:
-        trainer.fit(pl_module, train_dataloader, val_dataloader)
+
+    # Initialize the trainer
+    additional_params = {"default_root_dir": log_path}
+    trainer = network_config.lightning.get_default_lightning_trainer(model_mode, additional_params)
 
     # Evaluate the model
-    trainer.validate(pl_module, torch_data.DataLoader(train_dataloader.dataset, batch_size=105, shuffle=False))
-    trainer.validate(pl_module, val_dataloader)
-    utils.evaluate_model(model, val_dataloader, "MAP")
-
-    # Initialize the LaPlace approximation
-    laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
-    laplace = checkpoint.load_object(laplace_filename, path_args={"save_path": log_path / 'laplace'}, library='dill')
-    laplace_params = get_default_laplace_params(model_mode)
-    if laplace is None:
-        laplace = bayesian_laplace.compute_laplace_for_model(model, train_dataloader, val_dataloader, laplace_params)
-        checkpoint.save_object(laplace, laplace_filename, save_path=log_path / 'laplace', library='dill')
+    if args.stage=='val':
+        trainer.validate(pl_module, data_module)
+        pl_module.eval()
+        utils.evaluate_model(pl_module, data_module.val_dataloader(), "MAP")
+    elif args.stage=='test':
+        trainer.test(pl_module, data_module)
+        pl_module.eval()
+        utils.evaluate_model(pl_module, data_module.test_dataloader(), "MAP")
     
-    laplace_pl_module = config.lightning.get_default_lightning_laplace_module(model_mode, laplace) 
-    laplace_trainer = pl.Trainer()
-    laplace_trainer.validate(laplace_pl_module, torch_data.DataLoader(train_dataloader.dataset, batch_size=105, shuffle=False))
-    laplace_trainer.validate(laplace_pl_module, val_dataloader)
+# Register the cleanup function to be called on exit
+utils.register_cleanup()
 
-    # Evalauate the LaPlace approximation
-    utils.evaluate_model(laplace, val_dataloader, "LaPlace", laplace=True)
-    
 if __name__ == '__main__':
-    main()
-        
+    try:
+        main()
+    except Exception as e:
+        # Handle exceptions gracefully, log errors, etc.
+        print("An error occurred:", str(e))
+        # Print stacktrace
+        import traceback
+        traceback.print_exc()   
+
+
 

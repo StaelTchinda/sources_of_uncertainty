@@ -49,7 +49,7 @@ def parse_args() -> argparse.Namespace:
     parser.set_defaults(verbose=True)
 
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='vgg11', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='resnet18', required=False)
 
     parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
 
@@ -95,24 +95,24 @@ def main():
 
         bayesian_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv) 
     elif args.bayesian == 'mc_dropout':
-        # Initialize the model
-        model = config.network.get_default_model(model_mode)
-        utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
-        
         # Load the best checkpoint
-        best_checkpoint_path = checkpoint.find_best_checkpoint(model_checkpoints_path)
-        if best_checkpoint_path is not None:
-            pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
-            pl_module = pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
+        best_checkpoint_module, best_checkpoint_path = config.network.checkpoint.get_best_checkpoint(model_mode, model_checkpoints_path, with_path=True)
+        if best_checkpoint_module is not None:
+            utils.verbose_and_log(f"Loaded best checkpoint model from {best_checkpoint_path}", args.verbose, args.log)
+            pl_module = best_checkpoint_module
+            model = pl_module.model
             pl_module.eval()
         else:
-            pretrained_path = checkpoint.find_pretrained(model_checkpoints_path)
-            if pretrained_path is not None:
-                utils.verbose_and_log(f"Loading pretrained model from {pretrained_path}", args.verbose, args.log)
-                checkpoint.load_model(model, file_name=pretrained_path.stem, 
-                                    path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
+            pretrained_model, pretrained_path = config.network.checkpoint.get_pretrained(model_mode, model_checkpoints_path, with_path=True)
+            if pretrained_model is not None:
+                utils.verbose_and_log(f"Loaded pretrained model from {pretrained_path}", args.verbose, args.log)
+                model = pretrained_model
+                pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, pretrained_model)
+                pl_module.eval()
             else:   
                 raise ValueError("No checkpoint or pretrained model found")
+                    
+        utils.verbose_and_log(f"Model created: {pl_module}", args.verbose, args.log)
         
         # Get the dropout hook
         dropout_hook: bayesian_mc_dropout.DropoutHook

@@ -52,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     parser.set_defaults(verbose=True)
 
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='vgg13', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='resnet20', required=False)
 
     parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
@@ -106,26 +106,23 @@ def main():
     data_module = config.data.lightning.get_default_datamodule(data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
-
-    # Initialize the model
-    model = config.network.get_default_model(model_mode)
-    utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
-    pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
-
     # Load the best checkpoint
-    best_checkpoint_path = checkpoint.find_best_checkpoint(model_checkpoints_path)
-    if best_checkpoint_path is not None:
-        pl_module = pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
+    best_checkpoint_module, best_checkpoint_path = config.network.checkpoint.get_best_checkpoint(model_mode, model_checkpoints_path, with_path=True)
+    if best_checkpoint_module is not None:
+        utils.verbose_and_log(f"Loaded best checkpoint model from {best_checkpoint_path}", args.verbose, args.log)
+        pl_module = best_checkpoint_module
+        model = pl_module.model
         pl_module.eval()
     else:
-        pretrained_path = checkpoint.find_pretrained(model_checkpoints_path)
-        if pretrained_path is not None:
-            utils.verbose_and_log(f"Loading pretrained model from {pretrained_path}", args.verbose, args.log)
-            checkpoint.load_model(model, file_name=pretrained_path.stem, 
-                                path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
+        pretrained_model, pretrained_path = config.network.checkpoint.get_pretrained(model_mode, model_checkpoints_path, with_path=True)
+        if pretrained_model is not None:
+            utils.verbose_and_log(f"Loaded pretrained model from {pretrained_path}", args.verbose, args.log)
+            model = pretrained_model
+            pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, pretrained_model)
+            pl_module.eval()
         else:   
             raise ValueError("No checkpoint or pretrained model found")
-
+            
 
     # Set the Monte Carlo dropout
     dropout_hook: bayesian_mc_dropout.mc_dropout.DropoutHook
@@ -141,9 +138,9 @@ def main():
     #    - saves it
     #    - logs it
     # - run the model on the validation set
-    variance_callback = SaveLayerVarianceCallback()
-
+    
     mc_dropout_pl_module = config.bayesian.mc_dropout.lightning.get_default_lightning_mc_dropout_module(model_mode, dropout_hook)
+    variance_callback = SaveLayerVarianceCallback(sampling_size=mc_dropout_pl_module._n_samples)
     mc_dropout_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(
         model_mode, 
         {
@@ -157,7 +154,7 @@ def main():
 
     if isinstance(mc_dropout_trainer.logger, pl_tensorboard.TensorBoardLogger):
         for module_name, variance in variance_callback.named_variances():
-            utils.verbose_and_log(f"Logging variance of module {module_name}", args.verbose, args.log)
+            utils.verbose_and_log(f"Logging variance of module {module_name} of shape {variance.shape}", args.verbose, args.log)
             # IDEA: use the native function of tensorboard to log the histogram: SummaryWriter.add_histogram
             mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/{module_name}", histogram_variance(variance, title=module_name, channel_wise=False))
             mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/channel/{module_name}", histogram_variance(variance, title=module_name, channel_wise=True))
@@ -167,4 +164,5 @@ def main():
 utils.register_cleanup()
 
 if __name__ == '__main__':
+    utils.limit_memory(13 * 1024 * 1024 * 1024)
     utils.catch_and_print(main)
