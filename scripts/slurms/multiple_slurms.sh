@@ -2,7 +2,7 @@
 
 # Define arrays of values for each parameter
 data_values=("cifar10")
-model_values=("vgg11" "vgg13" "vgg16")
+model_values=("resnet20" "resnet32" "resnet44")
 bayesian_values=("mc_dropout")
 stage_values=("val")
 

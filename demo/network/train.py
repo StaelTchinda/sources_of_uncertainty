@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.set_defaults(verbose=True)
 
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=mode_config.AVAILABLE_DATASETS, default='cifar10', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=mode_config.AVAILABLE_MODELS, default='vgg11', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=mode_config.AVAILABLE_MODELS, default='resnet20', required=False)
 
     parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
