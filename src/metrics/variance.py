@@ -25,8 +25,6 @@ class VarianceEstimator:
                    probs: torch.Tensor,
                    sampling_index: int,
                    batch_index: int) -> None:
-        TensorMetricEstimator.assert_round_and_batch_index(sampling_index, batch_index)
-
         if self.device is not None and probs.device != self.device:
             probs = probs.to(self.device)
         elif self.device is None:
