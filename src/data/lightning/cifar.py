@@ -1,8 +1,8 @@
-from typing import Any, Dict, Text
+from typing import Any, Dict, List, Text
 from torch.utils import data as torch_data
 from torchvision import datasets
 from data.lightning.datamodule import CustomizableDataModule
-
+from data.lightning.util import adapt_dataset_size, random_indices_split
 
 
 class Cifar10DataModule(CustomizableDataModule):
@@ -35,12 +35,17 @@ class Cifar10DataModule(CustomizableDataModule):
 
     def setup(self, stage=None):
         # Assign train/val datasets for use in dataloaders
-        if stage == "fit" or stage is None:
-            mnist_full = datasets.CIFAR10(train=True, **self.train_dataset_params)
-            self.train_dataset, _ = torch_data.random_split(mnist_full, [self.train_ratio, self.val_ratio])
-        if stage == "fit" or stage == "validate" or stage is None:
-            mnist_full = datasets.CIFAR10(train=True, **self.val_dataset_params)
-            _, self.val_dataset = torch_data.random_split(mnist_full, [self.train_ratio, self.val_ratio])
+        if stage == "fit" or stage is None or stage == "validate":
+            fit_mode_full_dataset = datasets.CIFAR10(train=True, **self.train_dataset_params)
+            fit_mode_full_dataset = adapt_dataset_size(fit_mode_full_dataset, [self.train_ratio, self.val_ratio])
+            train_val_indices_split = random_indices_split(fit_mode_full_dataset, [self.train_ratio, self.val_ratio])
+
+            if stage == "fit" or stage is None:
+                self.train_dataset = torch_data.Subset(fit_mode_full_dataset, train_val_indices_split[0])
+
+            val_mode_full_dataset = datasets.CIFAR10(train=True, **self.val_dataset_params)
+            self.val_dataset = torch_data.Subset(val_mode_full_dataset, train_val_indices_split[1])
+
         # Assign test dataset for use in dataloader(s)
         if stage == "test" or stage is None:
             self.test_dataset = datasets.CIFAR10(
