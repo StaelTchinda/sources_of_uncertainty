@@ -55,7 +55,7 @@ class LightningClassifier(pl.LightningModule):
     def on_train_epoch_end(self):
         for (metric_name, metric) in self.train_metrics.items():
             if isinstance(metric, torchmetrics.Metric):
-                self.log(f'train/{metric_name}', metric.compute())
+                self.log(f'train/{metric_name}', metric.compute(), prog_bar=True)
                 metric.reset()
             else:
                 raise ValueError(f"Unknown metric type {type(metric)}")
@@ -64,7 +64,7 @@ class LightningClassifier(pl.LightningModule):
     
     def validation_step(self, batch, batch_idx):
         loss = self._eval_step(batch, batch_idx)
-        self.log('val/loss', loss, sync_dist=True)
+        self.log('val/loss', loss, sync_dist=True, prog_bar=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -84,12 +84,12 @@ class LightningClassifier(pl.LightningModule):
 
     def on_validation_epoch_end(self) -> None:
         for metric_name in self.val_metrics.keys():
-            self.log(f'val/{metric_name}', self.val_metrics[metric_name])
+            self.log(f'val/{metric_name}', self.val_metrics[metric_name], prog_bar=True)
         super().on_validation_epoch_end()
 
     def on_test_epoch_end(self) -> None:
         for metric_name in self.val_metrics.keys():
-            self.log(f'test/{metric_name}', self.val_metrics[metric_name])
+            self.log(f'test/{metric_name}', self.val_metrics[metric_name], prog_bar=True)
         super().on_test_epoch_end()
 
     def configure_optimizers(self):

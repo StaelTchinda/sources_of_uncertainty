@@ -51,7 +51,6 @@ PROJECT_PATH="$(dirname "$SCRIPT_PATH")"
 logdir="$PROJECT_PATH/checkpoints/$data/$model"
 
 # Launch tensorboard
-echo "Starting Tensorboard at port $port and directory $logdir"
 session_name="tensorboard_${data}_${model}_${port}"
-tmux new -As $session_name -d "tensorboard --logdir='$logdir' --port=$port;read;"
+tmux new -As $session_name -d "echo 'Starting Tensorboard at port $port and directory $logdir under the session $session_name'; tensorboard --logdir='$logdir' --port=$port;read;"
 tmux attach -t $session_name

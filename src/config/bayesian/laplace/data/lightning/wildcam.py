@@ -44,6 +44,7 @@ def get_default_dataset_params(dataset_mode: DatasetMode):
 
 def get_default_train_dataloader_params(dataset_mode: DatasetMode):
     batch_size: int = 32
+    big_batch_size: int = 64
     num_workers: int = 4
     if dataset_mode == "train":
         return {
@@ -52,12 +53,12 @@ def get_default_train_dataloader_params(dataset_mode: DatasetMode):
         }
     elif dataset_mode == "val":
         return {
-            "batch_size": batch_size,
+            "batch_size": big_batch_size,
             "num_workers": num_workers,
         }
     elif dataset_mode == "test":
         return {
-            "batch_size": batch_size,
+            "batch_size": big_batch_size,
             "num_workers": num_workers,
         }
     else:

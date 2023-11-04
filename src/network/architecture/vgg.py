@@ -2,7 +2,6 @@ from typing import Dict, Optional
 
 import torch
 from torch import nn
-from torchvision.models import ResNet18_Weights, ResNet50_Weights, ResNet, resnet50
 from torchvision.models._api import WeightsEnum
 from torchvision.models import VGG11_Weights, VGG13_Weights, VGG16_Weights, VGG16_BN_Weights, VGG, vgg16, vgg11
 from torchvision.models.vgg import make_layers, cfgs

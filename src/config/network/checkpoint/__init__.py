@@ -13,7 +13,7 @@ from util import checkpoint
 def get_best_checkpoint(model_mode: ModelMode, checkpoints_path: Path, with_path: bool = False) -> Union[Tuple[Optional[pl.LightningModule], Optional[Path]], Optional[pl.LightningModule]]:
     best_checkpoint_path: Optional[Path] = None
     if model_mode=="resnet20":
-        best_checkpoint_path = Path("/home/stud/tchindak/storage/tchindak/sources_of_uncertainty/checkpoints/cifar10/resnet20/model/lightning_logs/version_1116921/checkpoints/epoch=124-step=39125-val_loss=1.66-best.ckpt")
+        best_checkpoint_path = Path("/home/stud/tchindak/storage/tchindak/sources_of_uncertainty/checkpoints/cifar10/resnet20/model/lightning_logs/version_1117316/checkpoints/epoch=187-step=58844-val_loss=1.55-best.ckpt")
     else:
         best_checkpoint_path = checkpoint.find_best_checkpoint(checkpoints_path)
     

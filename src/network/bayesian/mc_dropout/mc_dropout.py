@@ -61,12 +61,22 @@ class DropoutHook:
         self.hooks = []
         self.enable_dropout = True
 
-        all_submodules = model.modules()
-        for (submodule, _) in self.submodule_to_dropouts.items():
+        self.register_forward_hooks()
+        # all_submodules = model.modules()
+        # for (submodule, _) in self.submodule_to_dropouts.items():
+        #     # If a dropout layer already belongs to the model, it should not be registered as a hook, otherwise it will forward twice.
+        #     if submodule not in all_submodules:
+        #         continue
+        #     self.hooks.append(submodule.register_forward_hook(self.forward_hook))
+
+
+    def register_forward_hooks(self, strict: bool=False):
+        all_submodules = list(self.model.modules())
+        for (submodule, dropout) in self.submodule_to_dropouts.items():
             # If a dropout layer already belongs to the model, it should not be registered as a hook, otherwise it will forward twice.
-            if submodule in all_submodules:
+            if dropout in all_submodules:
                 continue
-            self.hooks.append(submodule.register_forward_hook(self.forward_hook))
+            submodule.register_forward_hook(self.forward_hook)
 
     def forward_hook(self, module: nn.Module, args: Dict, output: torch.Tensor) -> torch.Tensor:
         dropout_function: nn.modules.dropout._DropoutNd = self.get_dropout_function(module)
@@ -113,6 +123,41 @@ class DropoutHook:
         for (submodule, element_check) in element_checks.items():
             if not element_check:
                 raise ValueError(f"Expected module {submodule} to belong to the model.")
+
+    # From torch.nn.Module.__repr__
+    def __repr__(self):
+        return repr_with_dropout_hook(self.model, self)
+    
+
+def repr_with_dropout_hook(model: nn.Module, dropout_hook: DropoutHook) -> Text:
+    # We treat the extra repr like the sub-module, one item per line
+    extra_lines = []
+    extra_repr = model.extra_repr() # Check if it should not be updated
+    # empty string will be split into list ['']
+    if extra_repr:
+        extra_lines = extra_repr.split('\n')
+    child_lines = []
+    all_submodules = list(model._modules.values())
+    for key, module in model._modules.items():
+        mod_str = repr_with_dropout_hook(module, dropout_hook)
+        mod_str = nn.modules.module._addindent(mod_str, 2)
+        child_lines.append('(' + key + '): ' + mod_str)
+        if module in dropout_hook.submodule_to_dropouts and dropout_hook.submodule_to_dropouts[module] not in all_submodules:
+            dropout_str = repr(dropout_hook.submodule_to_dropouts[module])
+            dropout_str = nn.modules.module._addindent(dropout_str, 2)
+            child_lines.append('(' + key + ' - Hook): ' + dropout_str)
+    lines = extra_lines + child_lines
+
+    main_str = model._get_name() + '('
+    if lines:
+        # simple one-liner info, which most builtin Modules will use
+        if len(extra_lines) == 1 and not child_lines:
+            main_str += extra_lines[0]
+        else:
+            main_str += '\n  ' + '\n  '.join(lines) + '\n'
+
+    main_str += ')'
+    return main_str
 
 def verbose_dropout_hook_dict(dropout_hook: DropoutHook) -> Text:
     unseen_modules: List[nn.Module] = list(dropout_hook.submodule_to_dropouts.keys())

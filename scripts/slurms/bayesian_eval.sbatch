@@ -9,7 +9,7 @@
 #SBATCH --output=/storage/slurm/tchindak/logs/slurm-%j.out
 #SBATCH --error=/storage/slurm/tchindak/logs/slurm-%j.out
 PROJECT_PATH=/storage/user/tchindak/sources_of_uncertainty
-$PROJECT_PATH/venv_torch_1_2/bin/python -O $PROJECT_PATH/demo/network/train.py $@
+$PROJECT_PATH/venv/bin/python -O $PROJECT_PATH/demo/bayesian/eval.py $@
 
 # Comment (Lukas K.)
 # For a normal DL task, it is useful to use multiple CPUs per GPU for example --cpus-per-task=3. This depends on how many CPUs your dataloader (pytorch num_workers) can use effectively.

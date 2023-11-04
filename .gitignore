@@ -133,3 +133,7 @@ dmypy.json
 .idea/
 /data/
 /checkpoints/
+/checkpoints.zip
+/Python-3.8.10/
+/venv_torch_1_2/
+tmp

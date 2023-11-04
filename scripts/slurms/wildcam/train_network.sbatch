@@ -2,14 +2,14 @@
 #SBATCH --job-name="Stael Demo WILDCAM"
 #SBATCH --nodes=4
 #SBATCH --cpus-per-task=4
-#SBATCH --gres=gpu:4,VRAM:24G
-#SBATCH --mem=16G
-#SBATCH --time=24:00:00
+#SBATCH --gres=gpu:1,VRAM:32G
+#SBATCH --mem=32G
+#SBATCH --time=12:00:00
 #SBATCH --mail-type=ALL
 #SBATCH --output=/storage/slurm/tchindak/logs/wildcam/slurm-%j.out
 #SBATCH --error=/storage/slurm/tchindak/logs/wildcam/slurm-%j.out
 PROJECT_PATH=/storage/user/tchindak/sources_of_uncertainty
-$PROJECT_PATH/venv/bin/python -O PROJECT_PATH/demo/network/train.py $@
+$PROJECT_PATH/venv/bin/python -O $PROJECT_PATH/demo/network/train.py $@
 
 # Comment (Lukas K.)
 # For a normal DL task, it is useful to use multiple CPUs per GPU for example --cpus-per-task=3. This depends on how many CPUs your dataloader (pytorch num_workers) can use effectively.

@@ -1,5 +1,4 @@
-import config.bayesian.laplace # as laplace
-import config.bayesian.mc_dropout # as mc_dropout
+from config.bayesian import laplace, mc_dropout
 
 
 

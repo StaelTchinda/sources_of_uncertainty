@@ -5,7 +5,7 @@ from torch import nn
 
 from config.mode import ModelMode
 from network.lightning import mc_dropout as bayesian_mc_dropout
-from config.bayesian.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config
+from config.bayesian.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config, resnet as resnet_config
 from network.bayesian import mc_dropout 
 
 def get_default_mc_dropout_lightning_module_params(model_mode: ModelMode) -> Dict[Text, Any]:
@@ -15,6 +15,8 @@ def get_default_mc_dropout_lightning_module_params(model_mode: ModelMode) -> Dic
         params = lenet_config.get_default_laplace_lightning_module_params()
     elif model_mode == "vgg11" or model_mode == "vgg13" or model_mode == "vgg16":
         params = vgg_config.get_default_laplace_lightning_module_params()
+    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
+        params = resnet_config.get_default_laplace_lightning_module_params()
     else:
         raise NotImplementedError(f"Model mode {model_mode} not implemented")
     

@@ -2,7 +2,7 @@
 import argparse
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Text
+from typing import Any, Dict, Optional, Text
 import logging
 import pytorch_lightning as pl
 import torch
@@ -24,7 +24,7 @@ add_src_to_path()
 
 from util import assertion, checkpoint
 from util import lightning as lightning_util, data as data_utils
-from config import laplace as laplace_config, network as network_config, data as data_config, mode as mode_config, log as log_config, path as path_config
+from config import network as network_config, data as data_config, mode as mode_config, log as log_config, path as path_config
 from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
@@ -50,11 +50,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
     parser.set_defaults(checkpoint=True)
 
+    parser.add_argument('--train', help='specify if the model should be trained', action='store_true')
+    parser.set_defaults(train=False)
+
     parser.add_argument('--eval', help='specify if the model should be evaluated', action='store_true')
     parser.add_argument('--no-eval', dest='eval', action='store_false')
     parser.set_defaults(eval=True)
 
-    parser.add_argument('--device', help='specify which devices to use', type=int, default=2, required=False)
+    parser.add_argument('--device', help='specify which devices to use', type=int, default=None, required=False)
 
     return parser.parse_args()
 
@@ -86,29 +89,34 @@ def main():
     # Save data hyperparameters
     pl_module.save_hyperparameters(data_module.hparams)
 
-    pretrained_path: Optional[Path] = None
+
+    # Eventually load the model from a checkpoint
+    best_checkpoint_path: Optional[Path] = None
     if args.checkpoint:
+        utils.verbose_and_log(f"Loading best checkpoint from {log_path}", args.verbose, args.log)
+        best_checkpoint_path = checkpoint.find_best_checkpoint(log_path)
+        if best_checkpoint_path is not None:
+            pl_module = pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
+            # pl_module.eval()
+        else:
+            utils.verbose_and_log(f"Best checkpoint not found", args.verbose, args.log)
+
+    pretrained_path: Optional[Path] = None
+    if args.checkpoint and best_checkpoint_path is None:
         pretrained_path = checkpoint.find_pretrained(log_path)
         if pretrained_path is not None:
             utils.verbose_and_log(f"Loading pretrained model from {pretrained_path}", args.verbose, args.log)
             model = checkpoint.load_model(model, file_name=pretrained_path.stem, 
                                 path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
-
-    # Eventually load the model from a checkpoint
-    best_checkpoint_path: Optional[Path] = None
-    if args.checkpoint and pretrained_path is None:
-        utils.verbose_and_log(f"Loading best checkpoint from {log_path}", args.verbose, args.log)
-        best_checkpoint_path = checkpoint.find_best_checkpoint(log_path)
-        if best_checkpoint_path is not None:
-            pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
-            # pl_module.eval()
+        if pretrained_path is None or model is None:
+            utils.verbose_and_log(f"Pretrained model not found", args.verbose, args.log)
 
     # Eventually train the model
-    additional_params = {"default_root_dir": log_path}
+    additional_params: Dict[Text, Any] = {"default_root_dir": log_path}
     if args.device is not None:
-        additional_params["devices"] = args.device
+        additional_params["devices"] = [args.device]
     trainer = network_config.lightning.get_default_lightning_trainer(model_mode, additional_params)
-    if best_checkpoint_path is None and pretrained_path is None:
+    if (best_checkpoint_path is None and pretrained_path is None) or args.train:
         utils.verbose_and_log(f"Training model", args.verbose, args.log)
         trainer.fit(pl_module, data_module)
 
@@ -118,17 +126,9 @@ def main():
         pl_module.eval()
         utils.evaluate_model(pl_module, data_module.val_dataloader(), "MAP_on_val")
 
-import atexit
 # Register the cleanup function to be called on exit
-atexit.register(utils.cleanup)
+utils.register_cleanup()
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        # Handle exceptions gracefully, log errors, etc.
-        print("An error occurred:", str(e))
-        # Print stacktrace
-        import traceback
-        traceback.print_exc()   
+    utils.catch_and_print(main)
 

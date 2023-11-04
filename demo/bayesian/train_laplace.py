@@ -26,10 +26,11 @@ add_src_to_path()
 from util import assertion, data as data_utils, checkpoint
 from util import lightning as lightning_util
 import config
-from network.bayesian import laplace as bayesian_laplace
+from network.bayesian.laplace import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
 import metrics
+from network.architecture.resnet.nfnets.nf_resnet import nf_resnet18
 
 
 # Take script arguments for the data mode and the model mode
@@ -44,14 +45,18 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='iris', required=False)
-    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='fc', required=False)
+    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
+    parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='resnet20', required=False)
 
     parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
     parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
-    parser.set_defaults(checkpoint=True)
+    parser.set_defaults(checkpoint=False)
 
-    parser.add_argument('--device', help='specify which devices to use', type=int, default=2, required=False)
+    parser.add_argument('--eval', help='specify if a pre saved version of the laplace should be used', action='store_true')
+    parser.add_argument('--no-eval', dest='eval', action='store_false')
+    parser.set_defaults(eval=True)
+
+    parser.add_argument('--device', help='specify which devices to use', type=int, default=0, required=False)
 
     return parser.parse_args()
 
@@ -62,7 +67,7 @@ def main():
     torch.cuda.set_device(args.device)
 
     model_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}"
+    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -86,7 +91,7 @@ def main():
     pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
     best_checkpoint_path = checkpoint.find_best_checkpoint(model_log_path)
     if best_checkpoint_path is not None:
-        pl_module.load_from_checkpoint(str(best_checkpoint_path), model=model)
+        pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
         pl_module.eval()
     else:
         pretrained_path = checkpoint.find_pretrained(model_log_path)
@@ -96,6 +101,8 @@ def main():
                                 path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
         else:   
             raise ValueError("No checkpoint or pretrained model found")
+
+
 
     # Initialize the LaPlace approximation
     laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
@@ -112,35 +119,36 @@ def main():
         utils.verbose_and_log(f"Saving LaPlace approximation to {laplace_filename}", args.verbose, args.log)
         checkpoint.save_object(laplace_curv, laplace_filename, save_path=log_path / 'laplace', library='dill')
 
-    # Evaluate the LaPlace approximation
-    laplace_pl_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
-    laplace_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path}) 
-    
-    utils.make_deterministic()
-    laplace_trainer.validate(laplace_pl_module, data_module, verbose=args.verbose)
+    if args.eval:
+        # Evaluate the LaPlace approximation
+        laplace_pl_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
+        laplace_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path}) 
+        
+        utils.make_deterministic(False)
 
-    laplace_curv.model.eval()
-    laplace_pl_module.eval()
-    if next(laplace_curv.model.parameters()).device.type != laplace_curv._device:
-        laplace_curv.model.to(laplace_curv._device)
-    if laplace_pl_module._pred_mode == "deterministic":
-        utils.evaluate_model(nn.Sequential(laplace_curv.model, nn.Softmax(dim=-1)), data_module.val_dataloader(), "MAP")
-    elif laplace_pl_module._pred_mode == "bayesian":
-        utils.evaluate_model(laplace_curv, data_module.val_dataloader(), "LaPlace", 
-                         pred_type=laplace_pl_module._pred_type, n_samples=laplace_pl_module._n_samples)
-    else:
-        raise ValueError(f"Unknown prediction mode {laplace_pl_module._pred_mode}")
+        utils.verbose_and_log(f"Original deterministic metrics", args.verbose, args.log)
+        laplace_trainer.validate(pl_module, data_module, verbose=args.verbose)
 
-import atexit
+        utils.verbose_and_log(f"LaPlace metrics", args.verbose, args.log)
+        laplace_trainer.validate(laplace_pl_module, data_module, verbose=args.verbose)
+
+        laplace_curv.model.eval()
+        laplace_pl_module.eval()
+        if next(laplace_curv.model.parameters()).device.type != laplace_curv._device:
+            laplace_curv.model.to(laplace_curv._device)
+        if laplace_pl_module._pred_mode == "deterministic":
+            utils.evaluate_model(nn.Sequential(laplace_curv.model, nn.Softmax(dim=-1)), data_module.val_dataloader(), "MAP")
+        elif laplace_pl_module._pred_mode == "bayesian":
+            utils.evaluate_model(laplace_curv, data_module.val_dataloader(), "LaPlace", 
+                            pred_type=laplace_pl_module._pred_type, n_samples=laplace_pl_module._n_samples)
+        else:
+            raise ValueError(f"Unknown prediction mode {laplace_pl_module._pred_mode}")
+
 # Register the cleanup function to be called on exit
-atexit.register(utils.cleanup)
+utils.register_cleanup()
+
+
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        # Handle exceptions gracefully, log errors, etc.
-        print("An error occurred:", str(e))
-        # Print stacktrace
-        import traceback
-        traceback.print_exc()   
+    utils.limit_memory(9 * 1024 * 1024 * 1024)
+    utils.catch_and_print(lambda: utils.run_with_timeout(main, timeout=20*60))

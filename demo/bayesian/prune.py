@@ -63,8 +63,9 @@ def parse_args() -> argparse.Namespace:
 def main():
     args: argparse.Namespace = parse_args()
 
-    laplace_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace"
-    prune_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "laplace" / "analyse" / "layer" / "prune"
+    bayesian_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian"
+    laplace_log_path: Path = bayesian_log_path / "laplace"
+    prune_log_path: Path = bayesian_log_path / "analyse" / "layer" / "prune"
     log_foldername: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -155,7 +156,8 @@ if __name__ == '__main__':
         print(torch.cuda.memory_summary(device=None, abbreviated=False))
         # Handle exceptions gracefully, log errors, etc.
         print("An error occurred:", str(e))
-        print_gpu_variables_usage()
+        # Print GPU memory usage
+        print(torch.cuda.memory_summary(device=None, abbreviated=False))
         # Print stacktrace
         import traceback
         traceback.print_exc()        

@@ -5,7 +5,7 @@ from torch import nn
 
 from config.mode import ModelMode
 from network.lightning import laplace as bayesian_laplace
-from config.bayesian.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config
+from config.bayesian.laplace.lightning import fc as fc_config, lenet as lenet_config, vgg as vgg_config, resnet as resnet_config
 from network.pruning import laplace as laplace_pruning
 
 def get_default_laplace_lightning_module_params(model_mode: ModelMode) -> Dict[Text, Any]:
@@ -13,8 +13,11 @@ def get_default_laplace_lightning_module_params(model_mode: ModelMode) -> Dict[T
         return fc_config.get_default_laplace_lightning_module_params()
     elif model_mode == "lenet5":
         return lenet_config.get_default_laplace_lightning_module_params()
+    # TODO: delete vgg config
     elif model_mode == "vgg11" or model_mode == "vgg13" or model_mode == "vgg16":
         return vgg_config.get_default_laplace_lightning_module_params()
+    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
+        return resnet_config.get_default_laplace_lightning_module_params()
     else:
         raise NotImplementedError(f"Model mode {model_mode} not implemented")
 
@@ -34,6 +37,8 @@ def get_default_lightning_laplace_trainer_params(model_mode: ModelMode) -> Dict[
         params = lenet_config.get_default_lightning_laplace_trainer_params()
     elif model_mode == "vgg11" or model_mode == "vgg13" or model_mode == "vgg16":
         params = vgg_config.get_default_lightning_laplace_trainer_params()
+    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
+        params = resnet_config.get_default_lightning_laplace_trainer_params()
     else:
         raise NotImplementedError(f"Model mode {model_mode} not implemented")
     return params
