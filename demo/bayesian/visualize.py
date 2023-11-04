@@ -50,6 +50,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
     parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
 
+    parser.add_argument('--joint_data', help='specify which joint dataset to use', type=str, choices=config.mode.AVAILABLE_JOINT_DATASETS, default=None, required=False)
+
     parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='test', required=False)
 
     parser.add_argument('--bayesian', help='specify which bayesian method to use', type=str, choices=config.mode.AVAILABLE_BAYESIAN_MODES, default='mc_dropout', required=False)
@@ -62,7 +64,10 @@ def main():
 
     model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
     laplace_log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian" / "laplace"
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian" / 'visualisation'
+    if args.joint_data is None:
+        log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian" / 'visualisation'
+    else:
+        log_path: Path  = config.path.CHECKPOINT_PATH / f"{args.joint_data}" / f"{args.model}" / "bayesian" / 'visualisation'
     log_foldername: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -73,10 +78,14 @@ def main():
         logging.disable(logging.CRITICAL)
 
     data_mode: config.mode.DataMode = args.data
+    joint_data_mode: Optional[config.mode.JointDataMode] = args.joint_data
     model_mode: config.mode.ModelMode = args.model
 
     # Initialize the dataloaders
-    data_module = config.data.lightning.get_default_datamodule(data_mode)
+    if joint_data_mode is None:
+        data_module = config.data.lightning.get_default_datamodule(data_mode)
+    else:
+        data_module = config.data.lightning.get_default_joint_datamodule(joint_data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Initialize the bayesian approximation
@@ -91,24 +100,24 @@ def main():
 
         bayesian_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv) 
     elif args.bayesian == 'mc_dropout':
-        # Initialize the model
-        model = config.network.get_default_model(model_mode)
-        utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
-        pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
-        
         # Load the best checkpoint
-        best_checkpoint_path = checkpoint.find_best_checkpoint(model_checkpoints_path)
-        if best_checkpoint_path is not None:
-            pl_module = pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
+        best_checkpoint_module, best_checkpoint_path = config.network.checkpoint.get_best_checkpoint(model_mode, model_checkpoints_path, with_path=True)
+        if best_checkpoint_module is not None:
+            utils.verbose_and_log(f"Loaded best checkpoint model from {best_checkpoint_path}", args.verbose, args.log)
+            pl_module = best_checkpoint_module
+            model = pl_module.model
             pl_module.eval()
         else:
-            pretrained_path = checkpoint.find_pretrained(model_checkpoints_path)
-            if pretrained_path is not None:
-                utils.verbose_and_log(f"Loading pretrained model from {pretrained_path}", args.verbose, args.log)
-                checkpoint.load_model(model, file_name=pretrained_path.stem, 
-                                    path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
+            pretrained_model, pretrained_path = config.network.checkpoint.get_pretrained(model_mode, model_checkpoints_path, with_path=True)
+            if pretrained_model is not None:
+                utils.verbose_and_log(f"Loaded pretrained model from {pretrained_path}", args.verbose, args.log)
+                model = pretrained_model
+                pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, pretrained_model)
+                pl_module.eval()
             else:   
                 raise ValueError("No checkpoint or pretrained model found")
+                    
+        utils.verbose_and_log(f"Model created: {pl_module}", args.verbose, args.log)
         
         # Get the dropout hook
         dropout_hook: bayesian_mc_dropout.DropoutHook

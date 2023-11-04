@@ -51,6 +51,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
     parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='resnet18', required=False)
 
+    parser.add_argument('--joint_data', help='specify which joint dataset to use', type=str, choices=config.mode.AVAILABLE_JOINT_DATASETS, default=None, required=False)
+
     parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
 
     parser.add_argument('--bayesian', help='specify which bayesian method to use', type=str, choices=config.mode.AVAILABLE_BAYESIAN_MODES, default='mc_dropout', required=False)
@@ -62,7 +64,10 @@ def main():
     args: argparse.Namespace = parse_args()
 
     model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
-    bayesian_log_path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian"
+    if args.joint_data is None:
+        bayesian_log_path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian"
+    else:
+        bayesian_log_path = config.path.CHECKPOINT_PATH / f"{args.joint_data}" / f"{args.model}" / "bayesian"
     laplace_log_path: Path = bayesian_log_path / "laplace"
     log_path: Path = bayesian_log_path / 'eval'
     log_foldername: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
@@ -77,10 +82,14 @@ def main():
     utils.verbose_and_log(f"Running with arguments: {args}", args.verbose, args.log)
 
     data_mode: config.mode.DataMode = args.data
+    joint_data_mode: Optional[config.mode.JointDataMode] = args.joint_data
     model_mode: config.mode.ModelMode = args.model
 
     # Initialize the dataloaders
-    data_module = config.data.lightning.get_default_datamodule(data_mode)
+    if joint_data_mode is None:
+        data_module = config.data.lightning.get_default_datamodule(data_mode)
+    else:
+        data_module = config.data.lightning.get_default_joint_datamodule(joint_data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Initialize the bayesian approximation
@@ -117,9 +126,9 @@ def main():
         # Get the dropout hook
         dropout_hook: bayesian_mc_dropout.DropoutHook
         if hasattr(model, "dropout_hook"):
-            dropout_hook = model.dropout_hook
+            dropout_hook = getattr(model, 'dropout_hook')
         else:
-            dropout_hook = bayesian_mc_dropout.DropoutHook(model)
+            raise ValueError("No dropout hook found")
 
         bayesian_module = config.bayesian.mc_dropout.lightning.get_default_lightning_mc_dropout_module(model_mode, dropout_hook)
     else:

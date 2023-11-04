@@ -43,6 +43,7 @@ def count_labels(dataset: torch_data.Dataset) -> Mapping[int, int]:
 
 
 def verbose_datamodule(datamodule: pl.LightningDataModule) -> Text:
+    datamodule.prepare_data()
     datamodule.setup(stage="fit")
     datamodule.setup(stage="test")
     return verbose_dataloaders(datamodule.train_dataloader(), datamodule.val_dataloader(), datamodule.test_dataloader())

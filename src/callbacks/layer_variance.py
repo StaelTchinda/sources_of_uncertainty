@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Literal, Optional, Text, Tuple, Union
 import logging
+import warnings
 import lightning.pytorch as pl
 import pytorch_lightning as pl
 from lightning.pytorch.loggers import TensorBoardLogger
@@ -25,9 +26,9 @@ from util import utils
 import metrics
 import config
 
+
 class SaveLayerVarianceCallback(pl.Callback):
-    def __init__(self, stage: Literal['train', 'val', 'test'] = 'val', sampling_size: Optional[int] = None):
-        self.stage = stage
+    def __init__(self, sampling_size: Optional[int] = None):
         self._sampling_index: Dict[nn.Module, int] = {}
         self._batch_index: Dict[nn.Module, int] = {}
         self._variances: Dict[nn.Module, metrics.VarianceEstimator] = {}
@@ -37,41 +38,59 @@ class SaveLayerVarianceCallback(pl.Callback):
     def module_variances(self) -> Iterable[Tuple[nn.Module, torch.Tensor]]:
         for (module, metric) in self._variances.items():
             yield (module, metric.get_metric_value())
-        # return {module: metric.get_metric_value() for (module, metric) in self._variances.items()}
     
+
     def named_variances(self) -> Iterable[Tuple[str, torch.Tensor]]:
         for (module, metric) in self._variances.items():
             yield (self._module_names[module], metric.get_metric_value())
-        # return {self._module_names[module]: metric.get_metric_value() for (module, metric) in self._variances.items()}
+
+
+    def on_test_start(self, trainer, pl_module):
+        self.on_predict_start(trainer, pl_module)
+
+
+    def on_test_batch_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch: Any, batch_idx: int, dataloader_idx: int = 0):
+        return self.on_predict_batch_start(trainer, pl_module, batch, batch_idx, dataloader_idx)
+
+
+    def on_test_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+        return self.on_predict_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+
 
     def on_validation_start(self, trainer, pl_module):
-        # TODO: Check this line does not have any impact and delete it
-        print("Validation is starting")
-        if self.stage == 'val':
-            if isinstance(pl_module, lightning.mc_dropout.McDropoutModule):
-                self.register_submodules(pl_module.dropout_hook.model)
-                self.register_module(pl_module.dropout_hook.model, 'model')
-            # TODO: think if I should also log the results of the model after softmax
-            # self.register_hooks(pl_module.laplace.model)
-            # pl_module.laplace.model.register_forward_hook(lambda module, input, output: self.module_hook_fn(module, input, torch.softmax(output, dim=-1)))
-            # self._module_names[pl_module.laplace.model] = 'model'
+        self.on_predict_start(trainer, pl_module)
 
-    # TODO: Check this function does not have any impact and delete it
-    def on_validation_end(self, trainer, pl_module):
-        print("Validation is ending")
 
-    def on_validation_batch_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
-        if self.stage == 'val':
-            self.globally_set_batch_index(batch_idx)
-            self.globally_set_sampling_index(0)
-        return super().on_validation_batch_start(trainer, pl_module, batch, batch_idx, dataloader_idx)
+    def on_validation_batch_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch: Any, batch_idx: int, dataloader_idx: int = 0):
+        return self.on_predict_batch_start(trainer, pl_module, batch, batch_idx, dataloader_idx)
+
 
     def on_validation_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
-        if self.stage == 'val':
-            for (module, variance_metric) in self._variances.items():
-                if self.expected_sampling_size is not None and self._sampling_index[module] == self.expected_sampling_size:
-                    variance_metric.finalize_batch(batch_idx)
-        return super().on_validation_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+        return self.on_predict_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+
+
+    def on_predict_start(self, trainer, pl_module):
+        if isinstance(pl_module, lightning.mc_dropout.McDropoutModule):
+            self.register_submodules(pl_module.dropout_hook.model)
+            self.register_module(pl_module.dropout_hook.model, 'model')
+        # TODO: think if I should also log the results of the model after softmax
+        # self.register_hooks(pl_module.laplace.model)
+        # pl_module.laplace.model.register_forward_hook(lambda module, input, output: self.module_hook_fn(module, input, torch.softmax(output, dim=-1)))
+        # self._module_names[pl_module.laplace.model] = 'model'
+
+
+    def on_predict_batch_start(self, trainer: pl.Trainer, pl_module: pl.LightningModule, batch: Any, batch_idx: int, dataloader_idx: int = 0):
+        self.globally_set_batch_index(batch_idx)
+        self.globally_set_sampling_index(0)
+        return super().on_predict_batch_start(trainer, pl_module, batch, batch_idx, dataloader_idx)
+
+
+    def on_predict_batch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule, outputs: STEP_OUTPUT, batch: Any, batch_idx: int, dataloader_idx: int = 0) -> None:
+        for (module, variance_metric) in self._variances.items():
+            if self.expected_sampling_size is not None and self._sampling_index[module] == self.expected_sampling_size:
+                variance_metric.finalize_batch(batch_idx)
+        return super().on_predict_batch_end(trainer, pl_module, outputs, batch, batch_idx, dataloader_idx)
+
 
     def register_submodules(self, module: nn.Module):
         for (sub_module_name, sub_module) in module.named_modules():
@@ -79,12 +98,14 @@ class SaveLayerVarianceCallback(pl.Callback):
                 continue
             self.register_module(sub_module, sub_module_name)
 
+
     def register_module(self, module: nn.Module, module_name: Optional[Text] = None):
         self._variances[module] = metrics.VarianceEstimator()
         self._sampling_index[module] = 0
         self._batch_index[module] = 0
         self._module_names[module] = module_name if module_name is not None else module.__class__.__name__
         module.register_forward_hook(self.module_hook_fn)
+
 
     def module_hook_fn(self, module: nn.Module, input: torch.Tensor, output: torch.Tensor):
         # if module not in self._variances:
@@ -97,6 +118,7 @@ class SaveLayerVarianceCallback(pl.Callback):
                                            sampling_index=self._sampling_index[module], 
                                            batch_index=self._batch_index[module])
         self.increase_sampling_index(module)
+
 
     def get_layer_variance(self, module: nn.Module):
         if module not in self._variances:
@@ -151,7 +173,7 @@ class LayerVarianceHook:
             self._sampling_index[module] = 0
         if module not in self._batch_index:
             self._batch_index[module] = 0
-        self._variances[module].feed_probs(output, gt_labels=None, samples=None,
+        self._variances[module].feed_probs(output,
                                            sampling_index=self._sampling_index[module], 
                                            batch_index=self._batch_index[module])
         self._sampling_index[module] += 1

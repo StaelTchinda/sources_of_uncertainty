@@ -27,8 +27,6 @@ add_src_to_path()
 from util import assertion, checkpoint
 from util import lightning as lightning_util, data as data_utils
 import config
-from config import network as network_config, data as data_config, mode as mode_config, log as log_config, path as path_config
-from network.bayesian import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
 
@@ -77,9 +75,9 @@ def main():
 
     # Initialize the dataloaders
     if joint_data_mode is None:
-        data_module = data_config.lightning.get_default_datamodule(data_mode)
+        data_module = config.data.lightning.get_default_datamodule(data_mode)
     else:
-        data_module = data_config.lightning.get_default_joint_datamodule(joint_data_mode)
+        data_module = config.data.lightning.get_default_joint_datamodule(joint_data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Load the best checkpoint
@@ -102,7 +100,7 @@ def main():
 
     # Initialize the trainer
     additional_params = {"default_root_dir": log_path}
-    trainer = network_config.lightning.get_default_lightning_trainer(model_mode, additional_params)
+    trainer = config.network.lightning.get_default_lightning_trainer(model_mode, additional_params)
 
     # Evaluate the model
     if args.stage=='val':
@@ -118,14 +116,4 @@ def main():
 utils.register_cleanup()
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        # Handle exceptions gracefully, log errors, etc.
-        print("An error occurred:", str(e))
-        # Print stacktrace
-        import traceback
-        traceback.print_exc()   
-
-
-
+    utils.catch_and_print(main)

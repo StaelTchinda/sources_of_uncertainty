@@ -54,9 +54,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='cifar10', required=False)
     parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='resnet20', required=False)
 
-    parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
-    parser.add_argument('--no-checkpoint', dest='checkpoint', action='store_false')
-    parser.set_defaults(checkpoint=True)
+    parser.add_argument('--joint_data', help='specify which joint dataset to use', type=str, choices=config.mode.AVAILABLE_JOINT_DATASETS, default=None, required=False)
+
+    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
 
     return parser.parse_args()
 
@@ -89,7 +89,10 @@ def main():
     args: argparse.Namespace = parse_args()
 
     model_checkpoints_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "model"
-    log_path: Path = config.path.CHECKPOINT_PATH / f"{args.data}" / f"{args.model}" / "bayesian" / "analyse" / "layer"
+    if args.joint_data is None:
+        log_path: Path = model_checkpoints_path / "bayesian" / "analyse" / "layer"
+    else:
+        log_path: Path = config.path.CHECKPOINT_PATH / f"{args.joint_data}" / f"{args.model}" / "bayesian" / "analyse" / "layer"
     log_filename: Text = f"run {datetime.now().strftime('%Y-%m-%d %H-%M-%S')}"
 
     if args.log:
@@ -100,10 +103,14 @@ def main():
         logging.disable(logging.CRITICAL)
 
     data_mode: config.mode.DataMode = args.data
+    joint_data_mode: Optional[config.mode.JointDataMode] = args.joint_data
     model_mode: config.mode.ModelMode = args.model
 
     # Initialize the dataloaders
-    data_module = config.data.lightning.get_default_datamodule(data_mode)
+    if joint_data_mode is None:
+        data_module = config.data.lightning.get_default_datamodule(data_mode)
+    else:
+        data_module = config.data.lightning.get_default_joint_datamodule(joint_data_mode)
     utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Load the best checkpoint
@@ -125,11 +132,11 @@ def main():
             
 
     # Set the Monte Carlo dropout
-    dropout_hook: bayesian_mc_dropout.mc_dropout.DropoutHook
+    dropout_hook: bayesian_mc_dropout.DropoutHook
     if hasattr(model, "dropout_hook"):
-        dropout_hook = model.dropout_hook
+        dropout_hook = getattr(model, 'dropout_hook')
     else:
-        dropout_hook = bayesian_mc_dropout.mc_dropout.DropoutHook(model)
+        raise ValueError("No dropout hook found")
 
     # Goal 1: anaylse the evolution of the variance over the layers
     # Approach:
@@ -149,20 +156,24 @@ def main():
         }
     )
 
-    mc_dropout_trainer.validate(mc_dropout_pl_module, data_module)
-    utils.verbose_and_log(f"Finished validation", args.verbose, args.log)
+    if args.stage == 'val':
+        mc_dropout_trainer.validate(mc_dropout_pl_module, data_module)
+    elif args.stage == 'test':
+        mc_dropout_trainer.test(mc_dropout_pl_module, data_module)
+    else:
+        raise ValueError(f"Invalid stage {args.stage}")
+    utils.verbose_and_log(f"Finished forward passing.", args.verbose, args.log)
 
     if isinstance(mc_dropout_trainer.logger, pl_tensorboard.TensorBoardLogger):
         for module_name, variance in variance_callback.named_variances():
             utils.verbose_and_log(f"Logging variance of module {module_name} of shape {variance.shape}", args.verbose, args.log)
             # IDEA: use the native function of tensorboard to log the histogram: SummaryWriter.add_histogram
-            mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/{module_name}", histogram_variance(variance, title=module_name, channel_wise=False))
-            mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/channel/{module_name}", histogram_variance(variance, title=module_name, channel_wise=True))
+            mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/{args.stage}/{module_name}", histogram_variance(variance, title=module_name, channel_wise=False))
+            mc_dropout_trainer.logger.experiment.add_figure(f"analyse_layer/{args.stage}/channel/{module_name}", histogram_variance(variance, title=module_name, channel_wise=True))
     else:
         warnings.warn("No TensorBoardLogger found, variances cannot be logged")
 
 utils.register_cleanup()
 
 if __name__ == '__main__':
-    utils.limit_memory(13 * 1024 * 1024 * 1024)
     utils.catch_and_print(main)

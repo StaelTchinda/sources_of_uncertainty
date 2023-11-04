@@ -48,7 +48,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--no-verbose', dest='verbose', action='store_false')
     parser.set_defaults(verbose=True)
 
-    parser.add_argument('--data', help='specify which dataset to use', type=str, choices=config.mode.AVAILABLE_DATASETS, default='mnist', required=False)
     parser.add_argument('--model', help='specify which model to use', type=str, choices=config.mode.AVAILABLE_MODELS, default='lenet5', required=False)
 
     parser.add_argument('--checkpoint', help='specify if a pre saved version of the laplace should be used', action='store_true')
@@ -89,12 +88,7 @@ def main():
     else:
         logging.disable(logging.CRITICAL)
 
-    data_mode: config.mode.DataMode = args.data
     model_mode: config.mode.ModelMode = args.model
-
-    # Initialize the dataloaders
-    data_module = config.data.lightning.get_default_datamodule(data_mode)
-    utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
 
     # Initialize the model
     model = config.network.get_default_model(model_mode)
