@@ -1,6 +1,7 @@
 from typing import Any, Dict, Literal, Text, Union, Optional, Callable
 import logging
 import os
+import resource
 
 import scipy
 import scipy.stats
@@ -101,14 +102,14 @@ def register_cleanup():
     import atexit
     atexit.register(cleanup)
 
-def make_deterministic(seed: int = 7777):
+def make_deterministic(mode: bool=True, seed: int = 7777):
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     # torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    torch.use_deterministic_algorithms(True, warn_only=True)
+    torch.backends.cudnn.benchmark = not mode
+    torch.use_deterministic_algorithms(mode, warn_only=True)
 
 
 def catch_and_print(func: Callable[[], Any]) -> Any:
@@ -139,3 +140,12 @@ def run_with_timeout(func, args=(), kwargs={}, timeout=120):
     signal.alarm(timeout)
     result = func(*args, **kwargs)
     return result
+
+
+def limit_memory(memory_bytes: int):
+    rsrc = resource.RLIMIT_DATA
+    soft, hard = resource.getrlimit(rsrc)
+    # print('Soft limit starts as  :', soft)
+    resource.setrlimit(rsrc, (memory_bytes, hard))
+    # soft, hard = resource.getrlimit(rsrc)
+    # print('Soft limit changed to :', soft)
