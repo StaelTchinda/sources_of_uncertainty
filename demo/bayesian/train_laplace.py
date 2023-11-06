@@ -152,5 +152,4 @@ utils.register_cleanup()
 
 
 if __name__ == '__main__':
-    utils.limit_memory(9 * 1024 * 1024 * 1024)
-    utils.catch_and_print(lambda: utils.run_with_timeout(main, timeout=20*60))
+    utils.catch_and_print(main)

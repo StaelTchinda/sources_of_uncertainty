@@ -161,4 +161,4 @@ def main():
 utils.register_cleanup()
 
 if __name__ == '__main__':
-    utils.catch_and_print(lambda: utils.run_with_timeout(main, timeout=40*60))
+    utils.catch_and_print(main)
