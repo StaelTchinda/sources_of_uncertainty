@@ -53,7 +53,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument('--joint_data', help='specify which joint dataset to use', type=str, choices=config.mode.AVAILABLE_JOINT_DATASETS, default=None, required=False)
 
-    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
+    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='test', required=False)
 
     parser.add_argument('--bayesian', help='specify which bayesian method to use', type=str, choices=config.mode.AVAILABLE_BAYESIAN_MODES, default='mc_dropout', required=False)
 
@@ -144,7 +144,7 @@ def main():
     bayesian_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, additional_params) 
 
     bayesian_module.eval()
-    model.eval()
+    # model.eval()
     if args.stage == 'val':
         bayesian_trainer.validate(bayesian_module, data_module)
         # utils.evaluate_model(nn.Sequential(model, nn.Softmax(dim=-1)), data_module.val_dataloader(), 'MAP')

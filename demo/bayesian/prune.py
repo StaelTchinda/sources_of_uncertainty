@@ -54,6 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--sparsity', help='specify which sparsity the module should have to have', nargs='*', default=None, required=False)
     parser.add_argument('--layer', help='specify which layers should be pruned we want the model to have', nargs='*', default=None, required=False)
 
+    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='test', required=False)
 
     parser.add_argument('--device', help='specify which devices to use', type=int, default=0, required=False)
 
@@ -130,7 +131,12 @@ def main():
                 assertion.assert_is(laplace_pl_module.pruner.original_model, laplace_pl_module.laplace.backend.model)
 
                 utils.make_deterministic()
-                laplace_trainer.validate(laplace_pl_module, data_module)
+                if args.stage == 'val':
+                    laplace_trainer.validate(laplace_pl_module, data_module)
+                elif args.stage == 'test':
+                    laplace_trainer.test(laplace_pl_module, data_module)
+                else:
+                    raise ValueError(f"Unknown stage {args.stage}")
 
                 # Log details of sparsity for verification. It's important to log after the validation for the logger object to be initialized.
                 model_sparsity = pruning_util.measure_modular_sparsity(laplace_pl_module.laplace.model)
