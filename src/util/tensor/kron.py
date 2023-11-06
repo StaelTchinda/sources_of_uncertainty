@@ -22,19 +22,21 @@ def from_kron_block_decomposed_to_tensors(kron_block_decomposed: KronBlockDecomp
 
 
 def kron_block_decomposed_min(kron_block_decomposed: KronBlockDecomposed) -> float:
-    torch_kron = lambda l: torch.kron(l[0], l[1]) if len(l) == 2 else l[0]
+    torch_kron = lambda l: torch.kron(l[0], l[1]) if len(l) == 2 else l[0]       
     torch_kron_min = lambda l: kron_min(l[0], l[1]) if len(l) == 2 else torch.min(l[0]).item()
     block_mins = []
     for kron_block in kron_block_decomposed:
+        if kron_block[0].numel()==0:
+            continue
         block_min = torch_kron_min(kron_block)
         assertion.assert_float_close(torch.min(torch_kron(kron_block)).item(), block_min)
         block_mins.append(block_min)
-    return min([torch_kron_min(kron_block) for kron_block in kron_block_decomposed])
+    return min([torch_kron_min(kron_block) for kron_block in kron_block_decomposed if kron_block[0].numel()>0]) # Since batchnorm is currently not supported, the loading for the batchnorm layer is not computed, so we need to remove it from the computation
 
 
 def kron_block_decomposed_max(kron_block_decomposed: KronBlockDecomposed) -> float:
     torch_kron_max = lambda l: torch.max(l[0]) * torch.max(l[1]) if len(l) == 2 else torch.max(l[0])
-    return max([torch_kron_max(kron_block).item() for kron_block in kron_block_decomposed])
+    return max([torch_kron_max(kron_block).item() for kron_block in kron_block_decomposed if kron_block[0].numel()>0])  # Since batchnorm is currently not supported, the loading for the batchnorm layer is not computed, so we need to remove it from the computation
 
 
 def kron_min(kron1: torch.Tensor, kron2: torch.Tensor) -> float:

@@ -1,5 +1,7 @@
 from typing import Dict, Iterable, List, Optional, Text, Union, Tuple
 from typing import overload
+from logging import warning
+import warnings
 
 import numpy as np
 from matplotlib import pyplot as plt
@@ -169,11 +171,12 @@ def log_laplace_eigenvalues(laplace_curv: laplace.ParametricLaplace, logger: Ten
         logger.experiment.add_figure(fig_name, fig)
 
     
-def log_laplace_loadings(laplace_curv: laplace.ParametricLaplace, logger: TensorBoardLogger, params: List[Tuple[NetworkGranularity, Optional[ReduceMode]]]):
+def log_laplace_loadings(laplace_curv: laplace.ParametricLaplace, logger: TensorBoardLogger, params: List[Tuple[NetworkGranularity, Optional[ReduceMode]]], verbose: bool = False):
     weight_eigenvalues, weight_eigenvectors = compute_laplace_eigendecomp(laplace_curv)
     model_decompostion = compute_model_decomposition(laplace_curv.model)
 
-    # print(f"Finding the most important principal components(eigenvectors) of the Laplace approximation")
+    if verbose:
+        print(f"Finding the most important principal components(eigenvectors) of the Laplace approximation")
     top_eigenvector_indices = pca_mask(weight_eigenvalues, coverage=0.9)
     # print(f"From {len(weight_eigenvalues)} eigenvalues and eigenvectors, {len(top_eigenvector_indices)} cover 95% of the total sum of eigenvalues.")
     top_eigenvalues = mask_pca_eigenvalues(weight_eigenvalues, top_eigenvector_indices)
@@ -200,8 +203,11 @@ def log_laplace_loadings(laplace_curv: laplace.ParametricLaplace, logger: Tensor
     
     for (x_axis, reduce_mode) in params:
         fig_prefix = f"{prefix}/pca_loadings/{x_axis}/{reduce_mode}"
-        for (fig_title, heatmap_figure) in heatmap_loadings(top_pca_loadings, model_decomposition=model_decompostion, reduce_mode=reduce_mode, x_axis=x_axis):
-            # print(f"Logging figure {fig_prefix}/{fig_title}")
+        if verbose:
+            print(f"Logging loadings for {fig_prefix}")
+        for (fig_title, heatmap_figure) in heatmap_loadings(top_pca_loadings, model_decomposition=model_decompostion, reduce_mode=reduce_mode, x_axis=x_axis, verbose=verbose):
+            if verbose:
+                print(f"Logging figure {fig_prefix}/{fig_title}")
             fig_name = f"{fig_prefix}/{fig_title}" if fig_title != '' else fig_prefix
             logger.experiment.add_figure(fig_name, heatmap_figure)
 
@@ -232,7 +238,7 @@ def compute_pca_loadings(eigenvalues, eigenvectors) -> Union[torch.Tensor, KronB
 
 
 
-def heatmap_loadings(loadings: Union[torch.Tensor, KronBlockDecomposed], x_axis: NetworkGranularity= 'layer_channel', reduce_mode: Optional[ReduceMode] = None, model_decomposition: Optional[Dict[Text, List[int]]]=None, threshold: Optional[Union[torch.Tensor, float]] = 0.2) -> Iterable[Tuple[Text, figure.Figure]]:
+def heatmap_loadings(loadings: Union[torch.Tensor, KronBlockDecomposed], x_axis: NetworkGranularity= 'layer_channel', reduce_mode: Optional[ReduceMode] = None, model_decomposition: Optional[Dict[Text, List[int]]]=None, threshold: Optional[Union[torch.Tensor, float]] = 0.2, verbose: bool = False) -> Iterable[Tuple[Text, figure.Figure]]:
     # if isinstance(loadings, list):
     #     loadings_shape = [[list(loading.shape) for loading in layer_loadings] for layer_loadings in loadings]
     # else:
@@ -242,6 +248,8 @@ def heatmap_loadings(loadings: Union[torch.Tensor, KronBlockDecomposed], x_axis:
     threshold_value: Optional[torch.Tensor] = None
 
     if isinstance(loadings, list):
+        if verbose: 
+            print(f"Preparing heatmap for loadings of shape {[list(block.shape) for loading in loadings for block in loading]}. Computing the min and max values of the loadings")
         vmin = kron_block_decomposed_min(loadings)
         vmax = kron_block_decomposed_max(loadings)
 
@@ -249,9 +257,13 @@ def heatmap_loadings(loadings: Union[torch.Tensor, KronBlockDecomposed], x_axis:
             threshold_value = torch.tensor([vmin, vmax]).abs().max() * threshold if isinstance(threshold, float) else threshold
 
         for (layer_name, layer_loadings) in zip(model_decomposition.keys(), from_kron_block_decomposed_to_tensors(loadings)):
-            # print(f"\tPreparing heatmap for layer {layer_name} with loadings of shape {layer_loadings.shape}")
+            if verbose:
+                print(f"\tPreparing heatmap for layer {layer_name} with loadings of shape {layer_loadings.shape}")
             fig, ax = plt.subplots(figsize=(10,10))
             layer_loadings = layer_loadings.detach()
+
+            if verbose:
+                print(f"\tAsserting that all values are between {vmin} and {vmax}")
 
             if x_axis == "weight":
                 # print(f"\tAsserting that all values are between {vmin} and {vmax}")
@@ -285,6 +297,9 @@ def heatmap_loadings(loadings: Union[torch.Tensor, KronBlockDecomposed], x_axis:
                         # print(f"Setting threshold to value {threshold_value}")
                         channel_eigenvalues[channel_eigenvalues.abs() <= threshold_value] = torch.nan
                     labels = {i: f'{layer_name}.{i}' for i in range(len(channel_eigenvalues)) if (i%10==0 or i==len(channel_eigenvalues)-1)}
+                    if channel_eigenvalues.numel() == 0:
+                        warnings.warn(f"Layer {layer_name} has no loadings")
+                        continue
                     plot_util.heatmap(
                         data=channel_eigenvalues,
                         row_labels=labels,
