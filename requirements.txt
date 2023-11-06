@@ -12,6 +12,7 @@ lightning
 wilds
 dill
 ddu_dirty_mnist
+tensorboard-plugin-customizable-plots
 # Required to debug jupyter notebooks. See https://youtrack.jetbrains.com/issue/PY-50575?_ga=2.113489479.1131763560.1678355643-827771421.1678355643
 # ipykernel==6.2.0
 # To avoid error https://github.com/jupyterlab/jupyterlab_pygments/issues/5
