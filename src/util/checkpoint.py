@@ -5,7 +5,7 @@ import dill
 from datetime import datetime
 from glob import glob
 from pathlib import Path
-from typing import Callable, Literal, Text, Optional, Any, Dict
+from typing import Callable, Literal, Text, Optional, Any, Dict, Union, Tuple
 
 import torch
 from torch import nn
@@ -113,23 +113,27 @@ def load_torch_object(file_name: Text, path_args: Dict[Text, Any] = {}, load_arg
 
 
 def load_object(file_name: Text, path_args: Dict[Text, Any] = {}, load_args: Dict[Text, Any] = {},
-                library: Literal["dill", "pickle"] = 'pickle') -> Any:
+                library: Literal["dill", "pickle"] = 'pickle', with_path: bool = False) -> Union[Any, Tuple[Any, Optional[Path]]]:
     file_path = get_file_path(file_name, **path_args)
+    loaded_object = None
     if file_path is not None:
         if library == 'pickle':
             try:
                 with open(file_path, 'rb') as f:
-                    return pickle.load(f, **load_args)
+                    loaded_object = pickle.load(f, **load_args)
             except Exception as e:
                 with open(file_path, 'rb') as f:
-                    return CPU_Unpickler(f).load()
+                    loaded_object = CPU_Unpickler(f).load()
         elif library == 'dill':
             with open(file_path, 'rb') as f:
-                return dill.load(f, **load_args)
+                loaded_object = dill.load(f, **load_args)
         else:
             raise ValueError(f"Unknown library {library}")
+    
+    if with_path:
+        return loaded_object, file_path
     else:
-        return None
+        return loaded_object
 
 
 def get_file_path(file_name: Text,
