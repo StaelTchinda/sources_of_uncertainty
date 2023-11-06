@@ -48,7 +48,7 @@ def parse_args() -> argparse.Namespace:
 
     parser.add_argument('--joint_data', help='specify which joint dataset to use', type=str, choices=config.mode.AVAILABLE_JOINT_DATASETS, default=None, required=False)
 
-    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='val', required=False)
+    parser.add_argument('--stage', help='specify which stage to use', type=str, choices=['val', 'test'], default='test', required=False)
 
     return parser.parse_args()
 
