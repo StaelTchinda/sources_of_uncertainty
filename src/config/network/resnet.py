@@ -11,11 +11,6 @@ def get_default_model_params(model_mode: ModelMode) -> Dict[Text, Any]:
         'dropout_p': 0.1,
     }
 
-def get_default_model() -> nn.Module:
-    params = get_default_model_params()
-    model = ResNet20(**params)
-    return model
-
 def get_default_model(model_mode: ModelMode) -> nn.Module:
     params = get_default_model_params(model_mode)
     if model_mode == "resnet20":
