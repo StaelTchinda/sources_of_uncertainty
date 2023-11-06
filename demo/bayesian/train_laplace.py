@@ -30,7 +30,6 @@ from network.bayesian.laplace import laplace as bayesian_laplace
 from network import lightning as lightning
 from util import utils
 import metrics
-from network.architecture.resnet.nfnets.nf_resnet import nf_resnet18
 
 
 # Take script arguments for the data mode and the model mode
