@@ -10,7 +10,7 @@ def get_prunable_named_modules(model: nn.Module, parameter_name: Text = "weight"
     # Define which modules of the original model can be pruned
     prunable_modules = {}
     for name, module in model.named_modules():
-        if hasattr(module, parameter_name):
+        if hasattr(module, parameter_name) and isinstance(getattr(module, parameter_name), nn.Parameter) and getattr(module, parameter_name).ndim > 1:
             prunable_modules[name] = module
     return prunable_modules
 
