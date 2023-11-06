@@ -86,8 +86,14 @@ def main():
     # Initialize the laplace approximation
     laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
     utils.verbose_and_log(f"Loading LaPlace approximation with name {laplace_filename} from {laplace_log_path}", args.verbose, args.log)
-    laplace_curv: laplace.ParametricLaplace = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill')
-    original_laplace_curv = copy.deepcopy(laplace_curv)
+    laplace_curv: Optional[laplace.ParametricLaplace] = None
+    laplace_curv_path: Optional[Path] = None
+    if args.checkpoint is True:
+        laplace_curv, laplace_curv_path = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill', with_path=True)
+    if laplace_curv is None:
+        raise ValueError(f"No LaPlace approximation found in {laplace_log_path}")
+    else:
+        utils.verbose_and_log(f"Loaded LaPlace approximation from {laplace_curv_path}", args.verbose, args.log)
 
     if laplace_curv is None:
         raise ValueError("No laplace approximation found")

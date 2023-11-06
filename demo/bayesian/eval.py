@@ -97,10 +97,12 @@ def main():
         # Initialize the laplace approximation
         laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
         utils.verbose_and_log(f"Loading LaPlace approximation with name {laplace_filename} from {laplace_log_path}", args.verbose, args.log)
-        laplace_curv: laplace.ParametricLaplace = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill')
+        laplace_curv_path: Optional[Path] = None
+        laplace_curv, laplace_curv_path = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_log_path}, library='dill', with_path=True)
         if laplace_curv is None:
-            raise ValueError("No laplace approximation found")
-        utils.verbose_and_log(f"Laplace loaded to model: {laplace_curv.model}", args.verbose, args.log)
+            raise ValueError(f"No LaPlace approximation found in {laplace_log_path}")
+        else:
+            utils.verbose_and_log(f"Loaded LaPlace approximation from {laplace_curv_path}", args.verbose, args.log)
 
         bayesian_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv) 
     elif args.bayesian == 'mc_dropout':

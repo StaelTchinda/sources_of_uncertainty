@@ -78,12 +78,14 @@ def main():
 
     # Load the LaPlace approximation
     laplace_filename = config.bayesian.laplace.get_default_laplace_name(model_mode)
-    laplace_curv: laplace.ParametricLaplace = None
+    laplace_curv: Optional[laplace.ParametricLaplace] = None
+    laplace_curv_path: Optional[Path] = None
     if args.checkpoint is True:
-        laplace_curv = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_checkpoints_path}, library='dill')
-        utils.verbose_and_log(f"LaPlace approximation loaded from {laplace_filename}", args.verbose, args.log)
+        laplace_curv, laplace_curv_path = checkpoint.load_object(laplace_filename, path_args={"save_path": laplace_checkpoints_path}, library='dill', with_path=True)
     if laplace_curv is None:
-        raise ValueError("No LaPlace approximation found")
+        raise ValueError(f"No LaPlace approximation found in {laplace_checkpoints_path}")
+    else:
+        utils.verbose_and_log(f"Loaded LaPlace approximation from {laplace_curv_path}", args.verbose, args.log)
 
     # Initialize the LaPlace module
     laplace_pl_module = config.bayesian.laplace.lightning.get_default_lightning_laplace_module(model_mode, laplace_curv)
