@@ -76,6 +76,12 @@ class LaplacePruningModule(lightning_laplace.LaplaceModule):
             return probs
 
     def on_validation_epoch_end(self) -> None:
+        self._on_eval_epoch_end()
+
+    def on_test_epoch_end(self) -> None:
+        self._on_eval_epoch_end()
+
+    def _on_eval_epoch_end(self):
         for (metric_name, metric) in self.val_metrics.items():
             metric_value = metric.compute()
             metric.reset()
