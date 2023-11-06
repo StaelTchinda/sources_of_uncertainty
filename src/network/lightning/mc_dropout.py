@@ -79,24 +79,24 @@ class McDropoutModule(pl.LightningModule):
         inputs, labels = batch
         outputs = self(inputs)
 
-        for metric_name in self.val_metrics.keys():
+        for (metric_name, metric) in self.val_metrics.items():
             if self._pred_mode == "bayesian":
-                if hasattr(self.val_metrics[metric_name], "is_ensemble_metric") and self.val_metrics[metric_name].is_ensemble_metric:
+                if hasattr(metric, "is_ensemble_metric") and metric.is_ensemble_metric:
                     preds = outputs
                 else:
                     preds = outputs.mean(dim=0)
             else:
                 preds = outputs
-            self.val_metrics[metric_name](preds, labels)
+            metric(preds, labels)
 
         return outputs
 
     def on_validation_epoch_end(self) -> None:
-        for metric_name in self.val_metrics.keys():
-            self.log(f'val/{metric_name}', self.val_metrics[metric_name], prog_bar=True)
+        for (metric_name, metric) in self.val_metrics.items():
+            self.log(f'val/{metric_name}', metric, prog_bar=True)
         return super().on_validation_epoch_end()
     
     def on_test_epoch_end(self) -> None:
-        for metric_name in self.val_metrics.keys():
-            self.log(f'test/{metric_name}', self.val_metrics[metric_name], prog_bar=True)
+        for (metric_name, metric) in self.val_metrics.items():
+            self.log(f'test/{metric_name}', metric, prog_bar=True)
         return super().on_test_epoch_end()
