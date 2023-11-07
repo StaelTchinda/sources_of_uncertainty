@@ -163,12 +163,4 @@ def main():
 utils.register_cleanup()
 
 if __name__ == '__main__':
-    try:
-        main()
-    except Exception as e:
-        # Handle exceptions gracefully, log errors, etc.
-        print("An error occurred:", str(e))
-        # Print stacktrace
-        import traceback
-        traceback.print_exc()        
-
+    utils.catch_and_print(main)
