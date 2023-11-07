@@ -48,7 +48,7 @@ def default_submodules_to_dropouts(model: nn.Module, p: Optional[float], mode: L
 
 
 class DropoutHook:
-    def __init__(self, model: nn.Module, p: Optional[float]=None, submodule_to_dropouts: Optional[Dict[nn.Module, nn.modules.dropout._DropoutNd]]=None):
+    def __init__(self, model: nn.Module, p: Optional[float]=None, submodule_to_dropouts: Optional[Dict[nn.Module, nn.modules.dropout._DropoutNd]]=None, lock_enable: bool = False, strict: bool = True):
         self.model: nn.Module = model
         # self.dropout_prob: float = p
 
@@ -61,6 +61,8 @@ class DropoutHook:
         self.hooks = []
         self.enable_dropout = True
 
+        self.lock_or_unlock_enable(lock_enable, strict)
+
         self.register_forward_hooks()
         # all_submodules = model.modules()
         # for (submodule, _) in self.submodule_to_dropouts.items():
@@ -68,7 +70,6 @@ class DropoutHook:
         #     if submodule not in all_submodules:
         #         continue
         #     self.hooks.append(submodule.register_forward_hook(self.forward_hook))
-
 
     def register_forward_hooks(self, strict: bool=False):
         all_submodules = list(self.model.modules())
@@ -89,9 +90,29 @@ class DropoutHook:
         self.enable_or_disable(False)
 
     def enable_or_disable(self, enable_dropout: bool):
+        if self.is_enabling_lock:
+            message = f"Dropout hook has been locked and cannot be enabled/disabled."
+            if self.enable_dropout == enable_dropout:
+                return
+            elif self.lock_is_strict:
+                raise ValueError(message)
+            else:
+                warnings.warn(message)
+                return
+
         self.enable_dropout = enable_dropout
         for (submodule, dropout) in self.submodule_to_dropouts.items():
             dropout.train(enable_dropout)
+
+    def lock_enable(self, strict: bool = True):
+        self.lock_or_unlock_enable(True, strict)
+
+    def unlock_enable(self, strict: bool = True):
+        self.lock_or_unlock_enable(False, strict)
+
+    def lock_or_unlock_enable(self, lock: bool, strict: bool = True):
+        self.is_enabling_lock = lock
+        self.lock_is_strict = strict
 
     def remove(self):
         for hook in self.hooks:
