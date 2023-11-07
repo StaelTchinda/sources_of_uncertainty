@@ -87,17 +87,19 @@ def main():
     model = config.network.get_default_model(model_mode)
     utils.verbose_and_log(f"Model created: {model}", args.verbose, args.log)
 
-    pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, model)
-    best_checkpoint_path = checkpoint.find_best_checkpoint(model_log_path)
-    if best_checkpoint_path is not None:
-        pl_module.__class__.load_from_checkpoint(str(best_checkpoint_path), model=model)
+    best_checkpoint_module, best_checkpoint_path = config.network.checkpoint.get_best_checkpoint(model_mode, model_log_path, with_path=True)
+    if best_checkpoint_module is not None:
+        utils.verbose_and_log(f"Loaded best checkpoint model from {best_checkpoint_path}", args.verbose, args.log)
+        pl_module = best_checkpoint_module
+        model = pl_module.model
         pl_module.eval()
     else:
-        pretrained_path = checkpoint.find_pretrained(model_log_path)
-        if pretrained_path is not None:
-            utils.verbose_and_log(f"Loading pretrained model from {pretrained_path}", args.verbose, args.log)
-            checkpoint.load_model(model, file_name=pretrained_path.stem, 
-                                path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
+        pretrained_model, pretrained_path = config.network.checkpoint.get_pretrained(model_mode, model_log_path, with_path=True)
+        if pretrained_model is not None:
+            utils.verbose_and_log(f"Loaded pretrained model from {pretrained_path}", args.verbose, args.log)
+            model = pretrained_model
+            pl_module: pl.LightningModule = config.network.lightning.get_default_lightning_module(model_mode, pretrained_model)
+            pl_module.eval()
         else:   
             raise ValueError("No checkpoint or pretrained model found")
 
@@ -127,9 +129,6 @@ def main():
         laplace_trainer = config.bayesian.laplace.lightning.get_default_lightning_laplace_trainer(model_mode, {"default_root_dir": log_path}) 
         
         utils.make_deterministic(False)
-
-        utils.verbose_and_log(f"Original deterministic metrics", args.verbose, args.log)
-        laplace_trainer.validate(pl_module, data_module, verbose=args.verbose)
 
         utils.verbose_and_log(f"LaPlace metrics", args.verbose, args.log)
         laplace_trainer.validate(laplace_pl_module, data_module, verbose=args.verbose)
