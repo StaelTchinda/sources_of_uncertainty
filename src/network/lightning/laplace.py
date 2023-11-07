@@ -17,7 +17,7 @@ from util import verification, assertion, device as device_util
 PredictionMode = Literal["deterministic", "bayesian"]
 
 class LaplaceModule(pl.LightningModule):
-    def __init__(self, laplace: ParametricLaplace, prediction_mode: PredictionMode = "deterministic", pred_type: Literal["glm", "nn"]="nn", n_samples: int = 1, val_metrics: Optional[Dict[Text, torchmetrics.Metric]] = None):
+    def __init__(self, laplace: ParametricLaplace, prediction_mode: PredictionMode = "deterministic", pred_type: Literal["glm", "nn"]="glm", n_samples: int = 1, val_metrics: Optional[Dict[Text, torchmetrics.Metric]] = None):
         super(LaplaceModule, self).__init__()
         verification.check_not_none(laplace)
         verification.check_not_none(laplace.model)
@@ -29,7 +29,7 @@ class LaplaceModule(pl.LightningModule):
         self.save_hyperparameters(ignore="laplace")
 
 
-    def configure_prediction_mode(self, mode: Literal["deterministic", "bayesian"], pred_type: Optional[Literal["glm", "nn"]]=None, n_samples: Optional[int] = None) -> None:
+    def configure_prediction_mode(self, mode: Literal["deterministic", "bayesian"], pred_type: Optional[Literal["glm", "glm"]]=None, n_samples: Optional[int] = None) -> None:
         if mode == "deterministic":
             self._pred_mode = mode
             if n_samples is not None:
