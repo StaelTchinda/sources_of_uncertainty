@@ -9,12 +9,14 @@ from util import assertion
 def get_default_deterministic_train_metrics(num_classes: int) -> Dict[Text, torchmetrics.Metric]:
     return {
         "acc": torchmetrics.Accuracy(task="multiclass", num_classes=num_classes),
+        "acc5": torchmetrics.Accuracy(task="multiclass", num_classes=num_classes, top_k = 5),
         "ece": torchmetrics.CalibrationError(num_classes=num_classes, task="multiclass", n_bins=10, norm="l1"), # ECE
     }
 
 def get_default_deterministic_val_metrics(num_classes: int) -> Dict[Text, torchmetrics.Metric]:
     return {
         "acc": torchmetrics.Accuracy(task="multiclass", num_classes=num_classes),
+        "acc5": torchmetrics.Accuracy(task="multiclass", num_classes=num_classes, top_k = 5),
         "f1": torchmetrics.F1Score(task="multiclass", num_classes=num_classes, average="macro"),
         "auroc": torchmetrics.AUROC(num_classes=num_classes, average="macro", task="multiclass"),
         "ap": torchmetrics.AveragePrecision(num_classes=num_classes, average="macro", task="multiclass"),

@@ -17,7 +17,7 @@ CORRUPTIONS_3DCC = ('near_focus', 'far_focus', 'bit_error', 'color_quant',
 
 
 # Class inspired from https://gist.github.com/edadaltocg/a5a3bf4175ff129a3c1091286a24e91b 
-class CIFAR10_C(dataset.Dataset):
+class CIFAR10C(dataset.Dataset):
     base_folder = "CIFAR-10-C"
     filename = "CIFAR-10-C.tar"
     file_md5 = "56bf5dcef84df0e2308c6dcbcbbd8499"

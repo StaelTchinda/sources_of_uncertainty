@@ -6,6 +6,7 @@ from pathlib import Path
 
 from torch import nn
 import pytorch_lightning as pl
+import torch
 import config
 from config.mode import ModelMode
 from util import checkpoint
@@ -38,6 +39,8 @@ def get_pretrained(model_mode: ModelMode, checkpoints_path: Path, with_path: boo
         model = config.network.get_default_model(model_mode)
         pretrained_model = checkpoint.load_model(model, file_name=pretrained_path.stem, 
                             path_args={'save_path': pretrained_path.parent, 'file_ext': pretrained_path.suffix[1:]})
+    elif model_mode == "swin_t":
+        pretrained_model = config.network.get_default_model(model_mode)
 
     if with_path:
         return pretrained_model, pretrained_path
