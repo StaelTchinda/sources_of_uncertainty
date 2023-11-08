@@ -78,8 +78,9 @@ def main():
         data_module = config.data.lightning.get_default_datamodule(data_mode)
     else:
         data_module = config.data.lightning.get_default_joint_datamodule(joint_data_mode)
-    utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module)}", args.verbose, args.log)
-
+    verbose_stages = config.bayesian.laplace.data.lightning.get_default_verbose_stages(data_mode)
+    utils.verbose_and_log(f"Datamodule initialized: \n{data_utils.verbose_datamodule(data_module, stages=verbose_stages)}", args.verbose, args.log)
+    
     # Load the best checkpoint
     best_checkpoint_model, best_checkpoint_path = config.network.checkpoint.get_best_checkpoint(model_mode, model_checkpoints_path, with_path=True)
     if best_checkpoint_model is not None:

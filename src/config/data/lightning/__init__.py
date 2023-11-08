@@ -1,5 +1,6 @@
 
 
+from typing import List, Literal
 import pytorch_lightning as pl
 
 from config.mode import DataMode, JointDataMode
@@ -22,3 +23,9 @@ def get_default_joint_datamodule(data_mode: JointDataMode) -> pl.LightningDataMo
         return ambiguous_mnist_config.get_default_datamodule()
     else:
         raise ValueError(f"Unknown data mode {data_mode}")
+    
+def get_default_verbose_stages(data_mode: DataMode) -> List[Literal["fit", "test"]]:
+    if data_mode == "imagenet":
+        return ["fit"]
+    else:
+        return ["fit", "test"]

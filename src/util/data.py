@@ -1,4 +1,4 @@
-from typing import Any, Dict, Text, Union, List, Optional, Mapping
+from typing import Any, Dict, Literal, Text, Union, List, Optional, Mapping
 import torch
 from torch.utils import data as torch_data
 import pytorch_lightning as pl
@@ -42,14 +42,14 @@ def count_labels(dataset: torch_data.Dataset) -> Mapping[int, int]:
     return label_counts
 
 
-def verbose_datamodule(datamodule: pl.LightningDataModule) -> Text:
+def verbose_datamodule(datamodule: pl.LightningDataModule, stages: List[Literal["fit", "test"]] = ["fit", "test"]) -> Text:
     datamodule.prepare_data()
-    datamodule.setup(stage="fit")
-    datamodule.setup(stage="test")
-    return verbose_dataloaders(datamodule.train_dataloader(), datamodule.val_dataloader(), datamodule.test_dataloader())
+    for stage in stages:
+        datamodule.setup(stage=stage)
+    return verbose_dataloaders(datamodule.train_dataloader(), datamodule.val_dataloader(), datamodule.test_dataloader() if "test" in stages else None)
 
 
-def verbose_dataloaders(train_dataloader: Optional[torch_data.DataLoader], val_dataloader: torch_data.DataLoader, test_dataloader: torch_data.DataLoader, verbose_class_distr: bool = False) -> Text:
+def verbose_dataloaders(train_dataloader: Optional[torch_data.DataLoader], val_dataloader: torch_data.DataLoader, test_dataloader: Optional[torch_data.DataLoader], verbose_class_distr: bool = False) -> Text:
 
     def print_count_labels(dataset):
         return ", ".join([f"{label}: {label_count}" for (label, label_count) in count_labels(dataset).items()])
@@ -62,9 +62,10 @@ def verbose_dataloaders(train_dataloader: Optional[torch_data.DataLoader], val_d
     result_str += f"Validation set size: {len(val_dataloader.dataset)}\n"
     if verbose_class_distr:
         result_str += f"{print_count_labels(val_dataloader.dataset)}\n"
-    result_str += f"Test set size: {len(test_dataloader.dataset)}\n"
-    if verbose_class_distr:
-        result_str += f"{print_count_labels(test_dataloader.dataset)}\n"
+    if test_dataloader is not None:
+        result_str += f"Test set size: {len(test_dataloader.dataset)}\n"
+        if verbose_class_distr:
+            result_str += f"{print_count_labels(test_dataloader.dataset)}\n"
 
     dataloader_to_sample = train_dataloader if train_dataloader is not None else val_dataloader
     for batch in dataloader_to_sample:
