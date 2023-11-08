@@ -31,5 +31,5 @@ def get_default_prior_optimization_params() -> Dict[Text, Any]:
         "method": "marglik",
         "pred_type": "glm",
         "link_approx": "probit",
-        "n_samples": 50,
+        "n_samples": 100,
     }
