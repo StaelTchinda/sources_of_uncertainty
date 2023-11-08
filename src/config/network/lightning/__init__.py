@@ -10,7 +10,7 @@ from config.network.lightning import fc as fc_config, lenet as lenet_config, res
 def get_default_lightning_module(model_mode: ModelMode, model: nn.Module) -> pl.LightningModule:
     if model_mode == "fc":
         return fc_config.get_default_lightning_module(model)
-    elif model_mode == "lenet5":
+    elif model_mode == "lenet5" or model_mode == "cifar10_lenet5":
         return lenet_config.get_default_lightning_module(model)
     elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
         return resnet_config.get_default_lightning_module(model)
@@ -25,8 +25,8 @@ def get_default_lightning_module(model_mode: ModelMode, model: nn.Module) -> pl.
 def get_default_lightning_trainer_params(model_mode: ModelMode) -> Dict[Text, Any]:
     if model_mode == "fc":
         return fc_config.get_default_lightning_trainer_params()
-    elif model_mode == "lenet5":
-        return lenet_config.get_default_lightning_trainer_params()
+    elif model_mode == "lenet5" or model_mode == "cifar10_lenet5":
+        return lenet_config.get_default_lightning_trainer_params(model_mode)
     elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
         return resnet_config.get_default_lightning_trainer_params()
     elif model_mode == 'swin_t':

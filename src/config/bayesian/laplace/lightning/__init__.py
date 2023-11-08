@@ -13,7 +13,7 @@ def get_default_laplace_lightning_module_params(model_mode: ModelMode) -> Dict[T
         return fc_config.get_default_laplace_lightning_module_params()
     elif model_mode == "lenet5":
         return lenet_config.get_default_laplace_lightning_module_params()
-    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
+    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44' or model_mode == "cifar10_lenet5":
         return resnet_config.get_default_laplace_lightning_module_params()
     elif model_mode == 'swin_t':
         return swin_config.get_default_laplace_lightning_module_params()
@@ -34,7 +34,7 @@ def get_default_lightning_laplace_trainer_params(model_mode: ModelMode) -> Dict[
         return fc_config.get_default_lightning_laplace_trainer_params()
     elif model_mode == "lenet5":
         params = lenet_config.get_default_lightning_laplace_trainer_params()
-    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
+    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44' or model_mode == "cifar10_lenet5":
         params = resnet_config.get_default_lightning_laplace_trainer_params()
     elif model_mode == 'swin_t':
         params = swin_config.get_default_lightning_laplace_trainer_params()

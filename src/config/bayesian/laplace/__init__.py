@@ -8,7 +8,7 @@ from config.bayesian.laplace import lightning, data, eval
 def get_default_laplace_params(model_mode: ModelMode) -> Dict[Text, Any]:
     if model_mode == "fc":
         return fc_config.get_default_laplace_params()
-    elif model_mode == "lenet5":
+    elif model_mode == "lenet5" or model_mode == "cifar10_lenet5":
         return lenet_config.get_default_laplace_params()
     elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
         return resnet_config.get_default_laplace_params()
@@ -20,7 +20,7 @@ def get_default_laplace_params(model_mode: ModelMode) -> Dict[Text, Any]:
 def get_default_laplace_name(model_mode: ModelMode) -> Text:
     if model_mode == "fc":
         return fc_config.get_default_laplace_name()
-    elif model_mode == "lenet5":
+    elif model_mode == "lenet5" or model_mode == "cifar10_lenet5":
         return lenet_config.get_default_laplace_name()
     elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
         return resnet_config.get_default_laplace_name(model_mode)
@@ -32,7 +32,7 @@ def get_default_laplace_name(model_mode: ModelMode) -> Text:
 def get_default_laplace_prior_optimization_params(model_mode: ModelMode) -> Dict[Text, Any]:
     if model_mode == "fc":
         return fc_config.get_default_prior_optimization_params()
-    elif model_mode == "lenet5":
+    elif model_mode == "lenet5" or model_mode == "cifar10_lenet5":
         return lenet_config.get_default_prior_optimization_params()
     elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
         return resnet_config.get_default_prior_optimization_params()

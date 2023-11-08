@@ -13,7 +13,7 @@ def get_default_mc_dropout_lightning_module_params(model_mode: ModelMode) -> Dic
         params = fc_config.get_default_laplace_lightning_module_params()
     elif model_mode == "lenet5":
         params = lenet_config.get_default_laplace_lightning_module_params()
-    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
+    elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44' or model_mode == "cifar_lenet5":
         params = resnet_config.get_default_laplace_lightning_module_params()
     elif model_mode == 'swin_t':
         params = swin_config.get_default_laplace_lightning_module_params()        

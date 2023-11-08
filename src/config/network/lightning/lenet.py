@@ -5,6 +5,7 @@ from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint
 
 from torch import nn
 from torch import optim
+from config.mode import ModelMode
 
 from network.lightning.classifier import LightningClassifier
 
@@ -28,9 +29,15 @@ def get_default_lightning_module(model: nn.Module) -> pl.LightningModule:
     return LightningClassifier(model, **params)
 
 
-def get_default_lightning_trainer_params() -> Dict[Text, Any]:
+def get_default_lightning_trainer_params(model_mode: ModelMode) -> Dict[Text, Any]:
+    if model_mode == "lenet5":
+        max_epochs = 10
+    elif model_mode == "cifar10_lenet5":
+        max_epochs = 30
+    else:
+        raise NotImplementedError(f"Model mode {model_mode} not implemented")
     return {
-        "max_epochs": 10,
+        "max_epochs": max_epochs,
         "devices": 1,
         "enable_progress_bar": True,
         "check_val_every_n_epoch": 1,

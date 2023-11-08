@@ -15,10 +15,12 @@ JointDataMode = Literal['ambiguous_mnist',
 
 
 AVAILABLE_MODELS = ['fc', 'lenet5',
+'cifar10_lenet5',
 'resnet20', 'resnet32', 'resnet44',
 'swin_t',
 'wideresnet50']
 ModelMode = Literal['fc', 'lenet5', 
+'cifar10_lenet5',
 'resnet20', 'resnet32', 'resnet44',
 'swin_t',
 'wideresnet50']   
