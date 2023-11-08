@@ -24,7 +24,7 @@ def get_default_laplace_name(model_mode: ModelMode) -> Text:
         return lenet_config.get_default_laplace_name()
     elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
         return resnet_config.get_default_laplace_name(model_mode)
-    elif model_mode == 'swint_t':
+    elif model_mode == 'swin_t':
         return swin_config.get_default_laplace_name(model_mode)
     else:
         raise NotImplementedError(f"Model mode {model_mode} not implemented")
@@ -36,7 +36,7 @@ def get_default_laplace_prior_optimization_params(model_mode: ModelMode) -> Dict
         return lenet_config.get_default_prior_optimization_params()
     elif model_mode == 'resnet20' or model_mode ==  'resnet32' or model_mode == 'resnet44':
         return resnet_config.get_default_prior_optimization_params()
-    elif model_mode == 'swint_t':
+    elif model_mode == 'swin_t':
         return swin_config.get_default_prior_optimization_params()
     else:
         raise NotImplementedError(f"Model mode {model_mode} not implemented")
