@@ -343,6 +343,11 @@ def histogram_eigenvalues(weight_eigenvalues: Union[torch.Tensor, KronBlockDecom
         verification.check_not_none(layer_names)
         all_eigenvalues: List[torch.Tensor] = []
         for (layer_name, layer_eigenvalues) in zip(layer_names, from_kron_block_decomposed_to_tensors(weight_eigenvalues)):
+            # Filter torch.nan values in the eigenvalues
+            layer_eigenvalues = layer_eigenvalues[~torch.isnan(layer_eigenvalues)]
+            if layer_eigenvalues.numel() == 0:
+                warnings.warn(f"Layer {layer_name} has no eigenvalues and will not be plotted")
+                continue
             fig, ax = plt.subplots()
             ax.set_yscale('log')
             ax.hist(layer_eigenvalues.detach().cpu().numpy())
